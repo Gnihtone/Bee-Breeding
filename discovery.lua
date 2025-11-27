@@ -88,13 +88,19 @@ local function discover()
   -- Map me_interface addresses to roles via slot-1 marker in interface config.
   for addr in component.list("me_interface") do
     local iface = component.proxy(addr)
-    local cfg = iface.getInterfaceConfiguration and iface:getInterfaceConfiguration(1)
-    local marker = cfg and marker_from_stack(cfg)
-    local role = classify_role(marker)
-    if role then
-      devices.me_interfaces[role] = devices.me_interfaces[role] or {}
-      devices.me_interfaces[role].address = addr
-      devices.me_interfaces[role].side = devices.me_interfaces[role].side or side_roles[role]
+    local ok, cfg = pcall(function()
+      if iface.getInterfaceConfiguration then
+        return iface.getInterfaceConfiguration(1)
+      end
+    end)
+    if ok then
+      local marker = cfg and marker_from_stack(cfg)
+      local role = classify_role(marker)
+      if role then
+        devices.me_interfaces[role] = devices.me_interfaces[role] or {}
+        devices.me_interfaces[role].address = addr
+        devices.me_interfaces[role].side = devices.me_interfaces[role].side or side_roles[role]
+      end
     end
   end
 

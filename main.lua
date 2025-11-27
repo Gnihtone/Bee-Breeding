@@ -289,7 +289,7 @@ local function ensure_princess_available(species, allow_skip)
     return nil, err or ("no mutation for " .. species)
   end
   for _, anc in ipairs(candidates) do
-    if not have[anc] then
+    if have_count(anc) == 0 then
       -- skip ancestors we don't have pure drones for
       goto continue_anc
     end
@@ -320,7 +320,7 @@ local function ensure_princess_available(species, allow_skip)
       if state == beekeeper.STATES.ERROR then
         break
       elseif state == beekeeper.STATES.DONE then
-        have[species] = true
+        recalc_have()
         return true
       end
       os.sleep(2)
