@@ -1,4 +1,4 @@
-﻿-- main.lua
+-- main.lua
 -- Entry point for bee breeder automation.
 
 local component = require("component")

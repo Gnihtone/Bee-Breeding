@@ -40,29 +40,31 @@ local function solve(db, targetSpecies, have, visiting)
     local local_have = copy_set(have)
     -- Plan for parent1
     local p1_plan, err1 = solve(db, mut.p1, local_have, visiting)
+    local parent_ok = true
     if not p1_plan and not local_have[mut.p1] then
-      goto next_mutation
+      parent_ok = false
     end
-    -- apply p1 plan
-    if p1_plan then
+    if parent_ok and p1_plan then
       for _, step in ipairs(p1_plan) do table.insert(new_plan, step) end
       local_have[mut.p1] = true
     end
 
-    -- Plan for parent2
-    local p2_plan, err2 = solve(db, mut.p2, local_have, visiting)
-    if not p2_plan and not local_have[mut.p2] then
-      goto next_mutation
-    end
-    if p2_plan then
-      for _, step in ipairs(p2_plan) do table.insert(new_plan, step) end
-      local_have[mut.p2] = true
+    if parent_ok then
+      -- Plan for parent2
+      local p2_plan, err2 = solve(db, mut.p2, local_have, visiting)
+      if not p2_plan and not local_have[mut.p2] then
+        parent_ok = false
+      end
+      if parent_ok and p2_plan then
+        for _, step in ipairs(p2_plan) do table.insert(new_plan, step) end
+        local_have[mut.p2] = true
+      end
     end
 
-    -- Add current mutation
-    table.insert(new_plan, mut)
-    return new_plan
-    ::next_mutation::
+    if parent_ok then
+      table.insert(new_plan, mut)
+      return new_plan
+    end
   end
 
   visiting[targetSpecies] = nil
