@@ -1,0 +1,392 @@
+Abnormal:Secluded,Ender;climate:COLD;humidity:NORMAL;block:none;dim:none
+Absolute:Ocean,Frigid;climate:ICY;humidity:NORMAL;block:none;dim:none
+Abyssal:Shadowed,Darkened;climate:HELLISH;humidity:ARID;block:none;dim:none
+Acentauri:Centauri,Infinitycatalyst;climate:HELLISH;humidity:ARID;block:α Centauri Bb Surface Block;dim:aCentauri
+Acidic:Corrosive,Caustic;climate:WARM;humidity:DAMP;block:none;dim:none
+Agrarian:Farmerly,Industrious;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Air:Supernatural,Windy;climate:HOT;humidity:DAMP;block:Air Crystal Cluster;dim:none
+Aluminium:Nickel,Zinc;climate:HOT;humidity:ARID;block:Block of Aluminum;dim:none
+Amber:Maroon,Saffron;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Amber:Thaumiumdust,Stickyresin;climate:NORMAL;humidity:NORMAL;block:Block of Amber;dim:none
+Americium:Lutetium,Chrome;climate:NORMAL;humidity:NORMAL;block:Block of Americium;dim:none
+Ancient:Noble,Diligent;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Apatite:Ash,Coal;climate:WARM;humidity:NORMAL;block:Block of Apatite;dim:none
+Arcaneshards:Thaumiumshard,Enddust;climate:NORMAL;humidity:ARID;block:Laboratory Floor;dim:End
+Argon:Helium,Lich;climate:ICY;humidity:NORMAL;block:none;dim:none
+Arid:Forest,Frugal;climate:HOT;humidity:ARID;block:none;dim:none
+Arid:Meadows,Frugal;climate:HOT;humidity:ARID;block:none;dim:none
+Arsenic:Zinc,Silver;climate:WARM;humidity:NORMAL;block:Block of Arsenic;dim:none
+Ash:Coal,Clay;climate:HELLISH;humidity:ARID;block:none;dim:none
+Ashen:Slate,Bleached;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Astralsilver:Silver,Iron;climate:NORMAL;humidity:NORMAL;block:Block of Astral Silver;dim:none
+Austere:Modest,Frugal;climate:HELLISH;humidity:ARID;block:none;dim:none
+Avenging:Vengeful,Vindictive;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Azure:Prussian,Bleached;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Barnarda:Makemake,Thorium;climate:HOT;humidity:ARID;block:Barnarda E Surface Block;dim:Kuiper Belt
+Barnardac:Barnarda,Americium;climate:HOT;humidity:ARID;block:Barnarda E Surface Block;dim:Barnarda C
+Barnardae:Barnarda,Divided;climate:HOT;humidity:ARID;block:Barnarda E Surface Block;dim:Barnard E
+Barnardaf:Barnarda,Neutronium;climate:HOT;humidity:ARID;block:Barnarda F Surface Block;dim:Barnard F
+Barren:Common,Arid;climate:HOT;humidity:ARID;block:none;dim:none
+Bedrockium:Explosive,Diamond;climate:HOT;humidity:NORMAL;block:Block of Bedrockium;dim:none
+Blackplutonium:Pluto,Plutonium;climate:HELLISH;humidity:ARID;block:Block of Black Plutonium;dim:Pluto
+Bleached:Wintry,Valiant;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Blooming:Industrious,Thriving;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Blutonium:Cyanite,Yellorium;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Boggy:Marshy,Miry;climate:WARM;humidity:DAMP;block:none;dim:none
+Bovine:Farmerly,Water;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Caelestis:Diamond,Divided;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Caffeinated:Farmerly,Tropical;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Callisto:Jupiter,Frigid;climate:ICY;humidity:DAMP;block:Callisto Surface Block;dim:Callisto
+Callistoice:Callisto,Absolute;climate:ICY;humidity:NORMAL;block:Callisto Cold Ice Block;dim:Callisto
+Caustic:Fiendish,Corrosive;climate:WARM;humidity:DAMP;block:none;dim:none
+Celebratory:Austere,Excited;climate:ICY;humidity:NORMAL;block:none;dim:none
+Centauri:Makemake,Desh;climate:HELLISH;humidity:ARID;block:α Centauri Bb Surface Block;dim:Kuiper Belt
+Ceres:Mars,Meteoriciron;climate:HOT;humidity:ARID;block:Ceres Subsurface Block;dim:Ceres
+Certus:Hermitic,Lapis;climate:NORMAL;humidity:NORMAL;block:Certus Quartz Block;dim:none
+Chad:Cultivated,Celebratory;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Chaos:Order,Fire;climate:ICY;humidity:NORMAL;block:Entropy Crystal Cluster;dim:none
+Chrome:Titanium,Ruby;climate:HOT;humidity:ARID;block:Block of Chrome;dim:none
+Clay:Industrious,Diligent;climate:NORMAL;humidity:DAMP;block:Clay;dim:none
+Coal:Industrious,Peat;climate:NORMAL;humidity:NORMAL;block:Block of Coal;dim:none
+Common:Embittered,Rocky;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Common:Embittered,Water;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Common:Forest,Embittered;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Common:Forest,Marshy;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Common:Forest,Meadows;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Common:Forest,Modest;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Common:Forest,Rocky;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Common:Forest,Tropical;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Common:Forest,Water;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Common:Forest,Wintry;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Common:Marshy,Embittered;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Common:Marshy,Rocky;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Common:Marshy,Water;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Common:Meadows,Embittered;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Common:Meadows,Marshy;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Common:Meadows,Modest;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Common:Meadows,Rocky;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Common:Meadows,Tropical;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Common:Meadows,Water;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Common:Meadows,Wintry;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Common:Modest,Embittered;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Common:Modest,Marshy;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Common:Modest,Rocky;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Common:Modest,Tropical;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Common:Modest,Water;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Common:Modest,Wintry;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Common:Rocky,Water;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Common:Tropical,Embittered;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Common:Tropical,Marshy;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Common:Tropical,Rocky;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Common:Tropical,Water;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Common:Tropical,Wintry;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Common:Wintry,Embittered;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Common:Wintry,Marshy;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Common:Wintry,Rocky;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Common:Wintry,Water;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Conductiveiron:Redstonealloy,Iron;climate:WARM;humidity:DAMP;block:Conductive Iron Block;dim:none
+Coolant:Icy,Glacial;climate:ICY;humidity:ARID;block:IC2 Coolant;dim:none
+Copper:Majestic,Clay;climate:NORMAL;humidity:NORMAL;block:Copper Block;dim:none
+Corroded:Modest,Resilient;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Corroded:Wintry,Resilient;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Corrosive:Malicious,Viscous;climate:WARM;humidity:DAMP;block:none;dim:none
+Cosmicneutronium:Neutronium,Barnardaf;climate:ICY;humidity:DAMP;block:Cosmic Neutronium Block;dim:none
+Creepy:Modest,Desolate;climate:HOT;humidity:ARID;block:none;dim:none
+Cryolite:Lead,Silver;climate:WARM;humidity:NORMAL;block:Block of Cryolite;dim:none
+Cryotheum:Redstone,Coolant;climate:ICY;humidity:ARID;block:none;dim:none
+Cultivated:Common,Embittered;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Cultivated:Common,Forest;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Cultivated:Common,Marshy;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Cultivated:Common,Meadows;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Cultivated:Common,Modest;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Cultivated:Common,Rocky;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Cultivated:Common,Tropical;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Cultivated:Common,Water;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Cultivated:Common,Wintry;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Cyanite:Nuclear,Yellorium;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Damp:Miry,Water;climate:NORMAL;humidity:DAMP;block:none;dim:none
+Darkened:Shadowed,Rocky;climate:HELLISH;humidity:ARID;block:none;dim:none
+Darksteel:Electricalsteel,Demonic;climate:COLD;humidity:NORMAL;block:Dark Steel Block;dim:none
+Decaying:Meadows,Desolate;climate:HOT;humidity:ARID;block:none;dim:none
+Decomposing:Marshy,Barren;climate:HOT;humidity:ARID;block:none;dim:none
+Deimos:Mars,Space;climate:HOT;humidity:DAMP;block:Deimos Subsurface Block;dim:Deimos
+Demonic:Sinister,Fiendish;climate:HELLISH;humidity:ARID;block:none;dim:none
+Desh:Mars,Titanium;climate:HOT;humidity:ARID;block:Block of Desh;dim:Mars
+Desolate:Arid,Barren;climate:HOT;humidity:ARID;block:none;dim:none
+Diamond:Certus,Coal;climate:HOT;humidity:NORMAL;block:Block of Diamond;dim:none
+Diamond:Cultivated,Lapis;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Diligent:Common,Cultivated;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Distilled:Industrious,Oily;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Divided:Diamond,Iron;climate:NORMAL;humidity:NORMAL;block:Unstable Ingot Block;dim:none
+Dob:Naquadah,Thaumiumshard;climate:NORMAL;humidity:NORMAL;block:Advanced Solar Panel II;dim:none
+Dragonessence:Ectoplasma,Arcaneshards;climate:NORMAL;humidity:ARID;block:Basic Essence Altar;dim:End
+Drake:Essentia,Thauminite;climate:HELLISH;humidity:DAMP;block:none;dim:none
+Earth:Water,Fire;climate:WARM;humidity:NORMAL;block:Earth Crystal Cluster;dim:none
+Ebony:Valiant,Rocky;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Ecstatic:Excited,Energetic;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Ectoplasma:Ender,Enddust;climate:NORMAL;humidity:ARID;block:Spooky Log;dim:End
+Edenic:Exotic,Tropical;climate:WARM;humidity:DAMP;block:none;dim:none
+Elastic:Distilled,Resinous;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Electricalsteel:Steel,Demonic;climate:NORMAL;humidity:DAMP;block:Electrical Steel Block;dim:none
+Electrotine:Redstone,Gold;climate:HOT;humidity:NORMAL;block:Block of Electrotine;dim:none
+Emerald:Forest,Lapis;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Emerald:Olivine,Diamond;climate:COLD;humidity:NORMAL;block:Block of Emerald;dim:none
+Enceladus:Saturn,Chrome;climate:ICY;humidity:NORMAL;block:Enceladus Snow;dim:Enceladus
+Enddust:Ender,Stainlesssteel;climate:NORMAL;humidity:ARID;block:End Powder Ore;dim:End
+Enderium:Platinum,Phantasmal;climate:HOT;humidity:NORMAL;block:Block of Enderium;dim:none
+Endermanhead:Enderium,Stardust;climate:NORMAL;humidity:ARID;block:Ender Goo;dim:End
+Endium:Ender,Thaumiumdust;climate:NORMAL;humidity:ARID;block:Endium Block;dim:End
+Endshard:Nethershard,Enddust;climate:ICY;humidity:NORMAL;block:none;dim:none
+Energetic:Diligent,Excited;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Energeticalloy:Redstonealloy,Demonic;climate:NORMAL;humidity:DAMP;block:Energetic Alloy Block;dim:none
+Energy:Demonic,Volcanic;climate:WARM;humidity:NORMAL;block:IC2 Hot Coolant;dim:none
+Essentia:Shadowmetal,Sparkeling;climate:NORMAL;humidity:NORMAL;block:Mixed Crystal Cluster;dim:none
+Europa:Jupiter,Iron;climate:ICY;humidity:NORMAL;block:Europa Surface Block;dim:Europa
+Europium:Neodymium,Hydrogen;climate:HOT;humidity:NORMAL;block:Block of Europium;dim:none
+Excited:Valiant,Cultivated;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Exotic:Austere,Tropical;climate:WARM;humidity:DAMP;block:none;dim:none
+Explosive:Firestone,Coal;climate:HELLISH;humidity:ARID;block:Industrial TNT;dim:none
+Farmed:Farmerly,Meadows;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Farmerly:Rural,Unweary;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Fermented:Farmerly,Meadows;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Fertilizer:Ash,Apatite;climate:WARM;humidity:DAMP;block:none;dim:none
+Fiendish:Sinister,Cultivated;climate:HELLISH;humidity:ARID;block:none;dim:none
+Fiendish:Sinister,Embittered;climate:HELLISH;humidity:ARID;block:none;dim:none
+Fiendish:Sinister,Modest;climate:HELLISH;humidity:ARID;block:none;dim:none
+Fiendish:Sinister,Tropical;climate:HELLISH;humidity:ARID;block:none;dim:none
+Fire:Supernatural,Air;climate:HELLISH;humidity:ARID;block:Fire Crystal Cluster;dim:none
+Fireessence:Firestone,Arcaneshards;climate:HELLISH;humidity:ARID;block:Fiery Essence Altar;dim:End
+Firestone:Redstone,Ruby;climate:WARM;humidity:DAMP;block:Block of Firestone;dim:none
+Fluix:Redstone,Lapis;climate:NORMAL;humidity:NORMAL;block:Fluix Block;dim:none
+Fluorine:Nitrogen,Hydrogen;climate:ICY;humidity:NORMAL;block:none;dim:none
+Fossilised:Primeval,Growing;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Fossilised:Rural,Primeval;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Frigid:Wintry,Diligent;climate:ICY;humidity:NORMAL;block:none;dim:none
+Frugal:Modest,Fiendish;climate:HELLISH;humidity:ARID;block:none;dim:none
+Frugal:Modest,Sinister;climate:HELLISH;humidity:ARID;block:none;dim:none
+Fruity:Sweetened,Thriving;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Fuchsia:Indigo,Lavender;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Fungal:Boggy,Fungal;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Fungal:Boggy,Miry;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Furious:Fiendish,Embittered;climate:HELLISH;humidity:ARID;block:none;dim:none
+Galvanized:Tropical,Resilient;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Galvanized:Wintry,Resilient;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Ganymede:Jupiter,Titanium;climate:COLD;humidity:ARID;block:Ganymede Surface Block;dim:Ganymede
+Glacial:Icy,Wintry;climate:COLD;humidity:NORMAL;block:none;dim:none
+Glittering:Majestic,Corroded;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Glittering:Majestic,Lustered;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Glittering:Majestic,Rusty;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Glowering:Furious,Excited;climate:HELLISH;humidity:ARID;block:none;dim:none
+Glowstone:Redstone,Gold;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Glutinous:Exotic,Viscous;climate:WARM;humidity:DAMP;block:none;dim:none
+Gnawing:Forest,Barren;climate:HOT;humidity:ARID;block:none;dim:none
+Gold:Lead,Copper;climate:HOT;humidity:NORMAL;block:Block of Gold;dim:none
+Growing:Forest,Diligent;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Haumea:Pluto,Naquadah;climate:ICY;humidity:ARID;block:Haumea Surface Block;dim:Haumea
+Hazardous:Austere,Desolate;climate:HOT;humidity:ARID;block:none;dim:none
+Helium:Watery,Enddust;climate:ICY;humidity:NORMAL;block:none;dim:none
+Hermitic:Monastic,Secluded;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Heroic:Steadfast,Valiant;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Hydra:Lich,Ignis;climate:HELLISH;humidity:ARID;block:none;dim:none
+Hydrogen:Oxygen,Watery;climate:ICY;humidity:NORMAL;block:none;dim:none
+Icy:Industrious,Wintry;climate:COLD;humidity:NORMAL;block:none;dim:none
+Imperial:Noble,Majestic;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Indigo:Maroon,Prussian;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Indium:Lead,Osmium;climate:HOT;humidity:NORMAL;block:Block of Indium;dim:Venus
+Indium:Silver,Osmium;climate:HOT;humidity:NORMAL;block:Block of Arcanite;dim:Bedrock
+Industrious:Diligent,Unweary;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Infectious:Tropical,Malicious;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Infinity:Infinitycatalyst,Cosmicneutronium;climate:ICY;humidity:NORMAL;block:Infinity Chest;dim:none
+Infinitycatalyst:Dob,Cosmicneutronium;climate:HELLISH;humidity:DAMP;block:Infinity Block;dim:none
+Infusedgold:Gold,Haumea;climate:ICY;humidity:DAMP;block:Block of Infused Gold;dim:Haumea
+Io:Jupiter,Volcanic;climate:HELLISH;humidity:ARID;block:Io Surface Block;dim:IO
+Iridium:Tungsten,Platinum;climate:HELLISH;humidity:ARID;block:Block of Iridium;dim:none
+Iron:Tin,Copper;climate:NORMAL;humidity:NORMAL;block:Block of Iron;dim:none
+Jaded:Ender,Relic;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Jaegermeister:Infinitycatalyst,Naquadria;climate:NORMAL;humidity:NORMAL;block:SpaceTime Frame Box (TileEntity);dim:Deep Dark
+Jupiter:Mars,Desh;climate:HOT;humidity:ARID;block:Block of Ledox;dim:Asteroids
+Kevlar:Oil,Infinitycatalyst;climate:COLD;humidity:DAMP;block:none;dim:none
+Krypton:Neon,Urghast;climate:ICY;humidity:NORMAL;block:none;dim:none
+Lapis:Demonic,Imperial;climate:NORMAL;humidity:NORMAL;block:Lapis Lazuli Block;dim:none
+Lapis:Imperial,Resilient;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Lapotron:Lapis,Energy;climate:ICY;humidity:DAMP;block:Lapis Lazuli Block;dim:Moon
+Lavender:Maroon,Bleached;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Lead:Coal,Copper;climate:WARM;humidity:DAMP;block:Lead Block;dim:none
+Leaden:Meadows,Resilient;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Leaden:Modest,Resilient;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Ledox:Callisto,Lead;climate:COLD;humidity:NORMAL;block:Block of Ledox;dim:Europa
+Leporine:Meadows,Forest;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Lich:Supernatural,Naga;climate:NORMAL;humidity:ARID;block:none;dim:none
+Lime:Natural,Bleached;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Lithium:Salty,Aluminium;climate:COLD;humidity:NORMAL;block:Lithium Frame Box;dim:none
+Lustered:Forest,Resilient;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Lustered:Marshy,Resilient;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Lutetium:Thorium,Decaying;climate:NORMAL;humidity:NORMAL;block:Block of Lutetium;dim:none
+Machinist:Industrious,Imperial;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Majestic:Noble,Cultivated;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Makemake:Pluto,Naquadria;climate:HOT;humidity:ARID;block:Makemake Surface Block;dim:MakeMake
+Malicious:Sinister,Tropical;climate:WARM;humidity:DAMP;block:none;dim:none
+Manganese:Titanium,Aluminium;climate:HOT;humidity:ARID;block:Block of Manganese;dim:none
+Maroon:Forest,Valiant;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Mars:Moon,Iron;climate:HOT;humidity:ARID;block:Mars Surface Rock;dim:Mars
+Mercury:Jupiter,Tungsten;climate:HELLISH;humidity:ARID;block:Mercury Surface Block;dim:Mercury
+Merry:Wintry,Forest;climate:ICY;humidity:NORMAL;block:none;dim:none
+Meteoriciron:Space,Iron;climate:HOT;humidity:ARID;block:Block of Meteoric Iron;dim:Moon
+Mica:Peat,Silicon;climate:HOT;humidity:NORMAL;block:none;dim:none
+Miranda:Uranus,Tin;climate:ICY;humidity:ARID;block:Miranda Surface Block;dim:Miranda
+Miry:Marshy,Noble;climate:WARM;humidity:DAMP;block:none;dim:none
+Mithril:Io,Platinum;climate:NORMAL;humidity:NORMAL;block:Block of Mithril;dim:IO
+Moon:Space,Clay;climate:COLD;humidity:NORMAL;block:Moon Rock;dim:Moon
+Mysteriouscrystal:Enceladus,Emerald;climate:ICY;humidity:ARID;block:Mysterious Crystal Block;dim:Enceladus
+Mystical:Noble,Monastic;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Mytryl:Io,Mithril;climate:NORMAL;humidity:NORMAL;block:Block of Mytryl;dim:IO
+Naga:Eldritch,Imperial;climate:NORMAL;humidity:DAMP;block:none;dim:none
+Naquadah:Plutonium,Iridium;climate:ICY;humidity:ARID;block:Block of Naquadah;dim:none
+Naquadria:Plutonium,Iridium;climate:ICY;humidity:ARID;block:Block of Naquadria;dim:none
+Natural:Tropical,Valiant;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Neodymium:Rareearth,Iron;climate:HOT;humidity:NORMAL;block:Block of Neodymium;dim:none
+Neon:Argon,Hydra;climate:ICY;humidity:NORMAL;block:none;dim:none
+Neptune:Uranus,Oriharukon;climate:COLD;humidity:DAMP;block:Mysterious Crystal Block;dim:Asteroids
+Netherite:Demonic,Diamond;climate:HELLISH;humidity:ARID;block:Block of Hellish Metal;dim:none
+Nethershard:Chaos,Fire;climate:HOT;humidity:ARID;block:none;dim:none
+Neutronium:Naquadria,Americium;climate:HELLISH;humidity:DAMP;block:Block of Neutronium;dim:none
+Nickel:Iron,Copper;climate:NORMAL;humidity:NORMAL;block:Block of Nickel;dim:none
+Nitrogen:Oxygen,Hydrogen;climate:ICY;humidity:NORMAL;block:none;dim:none
+Noble:Common,Cultivated;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Nuclear:Unstable,Corroded;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Nuclear:Unstable,Galvanized;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Nuclear:Unstable,Leaden;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Nuclear:Unstable,Lustered;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Nuclear:Unstable,Rusty;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Nuclear:Unstable,Tarnished;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Oberon:Uranus,Iridium;climate:ICY;humidity:ARID;block:Oberon Surface Block;dim:Oberon
+Ocean:Diligent,Water;climate:NORMAL;humidity:DAMP;block:none;dim:none
+Oil:Coal,Stickyresin;climate:NORMAL;humidity:DAMP;block:none;dim:none
+Oily:Frugal,Primeval;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Oily:Ocean,Primeval;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Olivine:Certus,Ender;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Order:Earth,Fire;climate:ICY;humidity:NORMAL;block:Order Crystal Cluster;dim:none
+Oriharukon:Lead,Oberon;climate:COLD;humidity:DAMP;block:Decorative Oriharukon Block;dim:Oberon
+Osmium:Tungsten,Platinum;climate:COLD;humidity:ARID;block:Block of Osmium;dim:none
+Oxygen:Helium,Dragonessence;climate:ICY;humidity:NORMAL;block:none;dim:none
+Peat:Rural,Clay;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Phantasmal:Spectral,Ender;climate:COLD;humidity:NORMAL;block:none;dim:none
+Phobos:Mars,Moon;climate:HOT;humidity:ARID;block:Phobos Stone;dim:Phobos
+Phosphorus:Apatite,Ash;climate:HOT;humidity:NORMAL;block:none;dim:none
+Platinum:Diamond,Chrome;climate:HOT;humidity:ARID;block:Block of Platinum;dim:none
+Pluto:Neptune,Plutonium;climate:ICY;humidity:ARID;block:Pluto Surface Ice;dim:Pluto
+Plutonium:Uranium,Emerald;climate:ICY;humidity:NORMAL;block:Block of Plutonium 239;dim:none
+Prehistoric:Primeval,Ancient;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Primeval:Secluded,Ancient;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Prismatic:Certus,Ocean;climate:COLD;humidity:DAMP;block:Prismarine;dim:none
+Proteus:Neptune,Copper;climate:COLD;humidity:NORMAL;block:Proteus Surface Block;dim:Proteus
+Prussian:Valiant,Water;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Pulsatingiron:Redalloy,Ender;climate:NORMAL;humidity:DAMP;block:Pulsating Iron Block;dim:none
+Pyrotheum:Redstone,Energy;climate:HELLISH;humidity:ARID;block:none;dim:none
+Quantium:Venus,Osmium;climate:HOT;humidity:ARID;block:Block of Quantium;dim:Venus
+Quantum:Spectral,Spatial;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Quicksilver:Thaumiumdust,Silver;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Rareearth:Fluorine,Redstone;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Redalloy:Copper,Redstone;climate:NORMAL;humidity:NORMAL;block:Block of Red Alloy;dim:none
+Redgarnet:Diamond,Ruby;climate:WARM;humidity:DAMP;block:Block of Red Garnet;dim:none
+Redstone:Industrious,Demonic;climate:NORMAL;humidity:NORMAL;block:Block of Redstone;dim:none
+Redstonealloy:Redstone,Redalloy;climate:NORMAL;humidity:NORMAL;block:Redstone Alloy Block;dim:none
+Refined:Distilled,Oily;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Relic:Imperial,Prehistoric;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Resilient:Industrious,Robust;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Resinous:Miry,Primeval;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Ripening:Sweetened,Growing;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+River:Diligent,Water;climate:NORMAL;humidity:DAMP;block:none;dim:none
+Robust:Unweary,Tolerant;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Ruby:Modest,Lapis;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Ruby:Redstone,Diamond;climate:HOT;humidity:DAMP;block:Block of Ruby;dim:none
+Rune:Dragonessence,Stardust;climate:HELLISH;humidity:ARID;block:Ender Chest;dim:End
+Rural:Meadows,Diligent;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Rusty:Forest,Resilient;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Rusty:Meadows,Resilient;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Saffron:Meadows,Valiant;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Salismundus:Thaumiumdust,Thaumiumshard;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Salty:Clay,Aluminium;climate:WARM;humidity:ARID;block:Block of Salt;dim:none
+Sandwich:Agrarian,Batty;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Sapphire:Certus,Lapis;climate:NORMAL;humidity:NORMAL;block:Block of Sapphire;dim:none
+Sapphire:Water,Lapis;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Saturn:Jupiter,Ledox;climate:COLD;humidity:NORMAL;block:Block of Quantium;dim:Asteriods
+Scummy:Agrarian,Exotic;climate:HELLISH;humidity:DAMP;block:Short Mead;dim:none
+Scummy:Tipsy,Exotic;climate:WARM;humidity:DAMP;block:none;dim:none
+Seaweed:Tceti,Tcetie;climate:NORMAL;humidity:DAMP;block:T Ceti E Surface Block;dim:tCeti E
+Secluded:Monastic,Austere;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Sepia:Marshy,Valiant;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Shadowed:Sinister,Rocky;climate:HELLISH;humidity:ARID;block:none;dim:none
+Shadowmetal:Chaotic,Void;climate:NORMAL;humidity:NORMAL;block:Block of Shadow Metal;dim:none
+Shining:Majestic,Galvanized;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Shining:Majestic,Leaden;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Shining:Majestic,Tarnished;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Silver:Lead,Tin;climate:COLD;humidity:NORMAL;block:Block of Silver;dim:none
+Silverfish:Ectoplasma,Stardust;climate:NORMAL;humidity:ARID;block:Ender Goo;dim:End
+Sinister:Cultivated,Embittered;climate:HELLISH;humidity:ARID;block:none;dim:none
+Sinister:Cultivated,Modest;climate:HELLISH;humidity:ARID;block:none;dim:none
+Sinister:Cultivated,Tropical;climate:HELLISH;humidity:ARID;block:none;dim:none
+Skeletal:Forest,Desolate;climate:HOT;humidity:ARID;block:none;dim:none
+Slate:Ebony,Bleached;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Slimeball:Marshy,Clay;climate:NORMAL;humidity:DAMP;block:Congealed Green Slime;dim:none
+Snowqueen:Urghast,Salismundus;climate:ICY;humidity:ARID;block:Salis Mundus Block;dim:none
+Sodden:Boggy,Damp;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Space:Industrious,Heroic;climate:ICY;humidity:ARID;block:none;dim:none
+Sparkeling:Withering,Draconic;climate:NORMAL;humidity:NORMAL;block:Block of Nether Star;dim:none
+Spatial:Hermitic,Abnormal;climate:COLD;humidity:NORMAL;block:none;dim:none
+Spectral:Hermitic,Ender;climate:COLD;humidity:NORMAL;block:none;dim:none
+Stained:Ebony,Ocean;climate:NORMAL;humidity:DAMP;block:none;dim:none
+Stainlesssteel:Chrome,Steel;climate:HOT;humidity:NORMAL;block:Block of Stainless Steel;dim:none
+Stardust:Ender,Zinc;climate:NORMAL;humidity:ARID;block:Stardust Ore;dim:End
+Steel:Iron,Coal;climate:WARM;humidity:NORMAL;block:Block of Steel;dim:none
+Sticky:Viscous,Glutinous;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Stickyresin:Slimeball,Peat;climate:NORMAL;humidity:NORMAL;block:Rubber Wood;dim:none
+Sugary:Rural,Sweetened;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Sulfur:Ash,Peat;climate:HOT;humidity:NORMAL;block:none;dim:none
+Sunnarium:Glowstone,Gold;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Sweetened:Valiant,Diligent;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Tainted:Thaumiumdust,Thaumiumshard;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Tarnished:Marshy,Resilient;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Tarnished:Tropical,Resilient;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Tarry:Distilled,Fossilised;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Tceti:Makemake,Haumea;climate:NORMAL;humidity:DAMP;block:T Ceti E Surface Block;dim:Kuiper Belt
+Tcetie:Tceti,Aqua;climate:NORMAL;humidity:DAMP;block:T Ceti E Surface Block;dim:tCeti E
+Tea:Fertilizer,Ash;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Thauminite:Ordered,Thaumiumdust;climate:NORMAL;humidity:NORMAL;block:Thauminite Block;dim:none
+Thaumiumdust:Ignis,Edenic;climate:NORMAL;humidity:NORMAL;block:Block of Thaumium;dim:none
+Thaumiumshard:Thaumiumdust,Aqua;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Thorium:Coal,Uranium;climate:COLD;humidity:NORMAL;block:Block of Thorium;dim:none
+Thriving:Unweary,Growing;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Tin:Clay,Diligent;climate:NORMAL;humidity:NORMAL;block:Tin Block;dim:none
+Tipsy:Wintry,Meadows;climate:ICY;humidity:NORMAL;block:none;dim:none
+Titan:Saturn,Nickel;climate:HOT;humidity:ARID;block:Titan Surface Block;dim:Titan
+Titanium:Redstone,Aluminium;climate:HOT;humidity:ARID;block:Block of Titanium;dim:none
+Tolerant:Diligent,Rocky;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Tricky:Sinister,Common;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Trinium:Enceladus,Iridium;climate:COLD;humidity:NORMAL;block:Block of Trinium;dim:Enceladus
+Triton:Neptune,Gold;climate:ICY;humidity:DAMP;block:Triton Surface Block;dim:Triton
+Tungsten:Heroic,Manganese;climate:HOT;humidity:ARID;block:Block of Tungsten;dim:none
+Turquoise:Natural,Prussian;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Unknownwater:Infinitycatalyst,Mysteriouscrystal;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Unstable:Prehistoric,Resilient;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Unweary:Diligent,Cultivated;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Uranium:Avenging,Platinum;climate:COLD;humidity:NORMAL;block:Block of Uranium 238;dim:none
+Uranus:Saturn,Trinium;climate:ICY;humidity:NORMAL;block:Decorative Oriharukon Block;dim:Asteroids
+Urghast:Hydra,Thaumiumdust;climate:HELLISH;humidity:ARID;block:Block of Thaumium;dim:none
+Valuable:Glittering,Shining;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Vega:Makemake,Naquadah;climate:COLD;humidity:ARID;block:Vega B Surface Block;dim:Kuiper Belt
+Vegab:Vega,Naquadria;climate:COLD;humidity:ARID;block:Vega B Surface Block;dim:VegaB
+Vengeful:Demonic,Vindictive;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Vengeful:Monastic,Vindictive;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Venus:Jupiter,Mithril;climate:HELLISH;humidity:ARID;block:Venus Surface Block;dim:Venus
+Vibrantalloy:Energeticalloy,Phantasmal;climate:HELLISH;humidity:DAMP;block:Vibrant Alloy Block;dim:none
+Vindictive:Monastic,Demonic;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Virulent:Malicious,Infectious;climate:WARM;humidity:DAMP;block:none;dim:none
+Viscous:Exotic,Water;climate:WARM;humidity:DAMP;block:none;dim:none
+Volcanic:Demonic,Furious;climate:HELLISH;humidity:ARID;block:none;dim:none
+Walrus:Watery,Catty;climate:NORMAL;humidity:DAMP;block:none;dim:none
+Water:Fire,Air;climate:ICY;humidity:NORMAL;block:Water Crystal Cluster;dim:none
+Xenon:Krypton,Snowqueen;climate:ICY;humidity:NORMAL;block:none;dim:none
+Yellorium:Frugal,Nuclear;climate:NORMAL;humidity:NORMAL;block:none;dim:none
+Yellowgarnet:Emerald,Redgarnet;climate:WARM;humidity:DAMP;block:Block of Yellow Garnet;dim:none
+Zinc:Iron,Tin;climate:NORMAL;humidity:NORMAL;block:Block of Zinc;dim:none
