@@ -102,20 +102,17 @@ local function is_bee(stack)
   return stack and (stack.name == "Forestry:beePrincessGE" or stack.name == "Forestry:beeDroneGE" or stack.name == "Forestry:beeQueenGE")
 end
 
-local function clear_buffer()
+-- Clear buffer only after a successful step: move pure bees of target species to bee ME, dirty drones to TRASH.
+local function clear_buffer(target_species)
   local node, tp = tp_utils.pick_node(tp_map, bufferNodes)
   if not node or not tp then return end
   local size = tp.getInventorySize(node.side)
   if not size then return end
   for slot = 1, size do
     local stack = tp.getStackInSlot(node.side, slot)
-    if stack then
-      -- Do not touch non-bee stacks (e.g., role markers or stray items).
-      if not is_bee(stack) then
-        goto continue_slot
-      end
+    if stack and is_bee(stack) then
       local pure, sp = analyzer.is_pure(stack)
-      if pure and sp then
+      if pure and sp and sp == target_species then
         if bee_me then
           local moved, merr = bee_me:return_bee(bufferNodes, slot, stack.size or 1, 1)
           if not moved or moved == 0 then
@@ -124,22 +121,17 @@ local function clear_buffer()
         else
           fatal("pure bee " .. tostring(sp) .. " in buffer and bee ME unavailable")
         end
-      else
-        if trashNodes then
-          local route, err = tp_utils.find_common(tp_map, bufferNodes, trashNodes)
-          if not route then
-            fatal("failed to move dirty bee to trash (no common transposer): " .. tostring(err))
-          end
-          local moved = route.tp.transferItem(route.a.side, route.b.side, stack.size or 1, slot)
-          if not moved or moved == 0 then
-            fatal("failed to move dirty bee to trash from buffer slot " .. slot)
-          end
-        else
-          fatal("dirty bee in buffer and no TRASH available (slot " .. slot .. ")")
+      elseif not pure and trashNodes then
+        local route, err = tp_utils.find_common(tp_map, bufferNodes, trashNodes)
+        if not route then
+          fatal("failed to move dirty bee to trash (no common transposer): " .. tostring(err))
+        end
+        local moved = route.tp.transferItem(route.a.side, route.b.side, stack.size or 1, slot)
+        if not moved or moved == 0 then
+          fatal("failed to move dirty bee to trash from buffer slot " .. slot)
         end
       end
     end
-    ::continue_slot::
   end
 end
 
@@ -371,7 +363,6 @@ if discovery_mode then
   log("discovery available mutations: " .. #muts)
   for _, step in ipairs(muts) do
     log(string.format("Try: %s x %s -> %s", step.p1, step.p2, step.child))
-    clear_buffer()
     local ok1, err1 = ensure_princess_available(step.p1, true)
     if not ok1 then
       log("skip step for " .. step.child .. ": " .. tostring(err1))
@@ -392,6 +383,7 @@ if discovery_mode then
       elseif state == beekeeper.STATES.DONE then
         log("step done: " .. step.child)
         recalc_have()
+        clear_buffer(step.child)
         break
       end
       os.sleep(2)
@@ -402,7 +394,6 @@ if discovery_mode then
 else
   for i, step in ipairs(plan) do
     log(string.format("Step %d/%d: %s x %s -> %s", i, #plan, step.p1, step.p2, step.child))
-    clear_buffer()
     local ok1, err1 = ensure_princess_available(step.p1, false)
     if not ok1 then fatal(err1) end
     local ok2, err2 = ensure_drone_available(step.p2, false)
@@ -416,6 +407,7 @@ else
       elseif state == beekeeper.STATES.DONE then
         log("step done: " .. step.child)
         recalc_have()
+        clear_buffer(step.child)
         break
       end
       os.sleep(2)

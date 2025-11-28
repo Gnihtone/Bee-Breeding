@@ -101,12 +101,12 @@ local function new(addr, nodes, tp_map, db_addr)
 
   -- Return bees back into the interface (they will be absorbed into ME).
   local function push_from(sourceNodes, fromSlot, count, toSlot)
-    toSlot = toSlot or DEFAULT_SLOT
     local route, err = tp_utils.find_common(tp_map, sourceNodes, nodes)
     if not route then
       return nil, "no common transposer for return to bee ME: " .. tostring(err)
     end
-    local moved = route.tp.transferItem(route.a.side, route.b.side, count or 64, fromSlot, toSlot)
+    -- Let transposer pick destination slot automatically to avoid colliding with config slot.
+    local moved = route.tp.transferItem(route.a.side, route.b.side, count or 64, fromSlot)
     return moved
   end
 
