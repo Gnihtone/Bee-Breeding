@@ -47,8 +47,8 @@ local function new(addr, nodes, tp_map, db_addr)
   end
 
   local db = component.proxy(db_addr)
-  if not db or not db.set then
-    return nil, "invalid database component or missing db.set"
+  if not db then
+    return nil, "invalid database component"
   end
 
   local iface = component.proxy(addr)
@@ -66,10 +66,10 @@ local function new(addr, nodes, tp_map, db_addr)
   -- Configure slot to output the desired bee stack.
   function self:set_config(slot, stack)
     slot = slot or DEFAULT_SLOT
-    -- Write descriptor into database slot.
-    local okdb, errdb = pcall(db.set, DEFAULT_DB_SLOT, stack)
+    -- Store descriptor via ME interface into database slot.
+    local okdb, errdb = pcall(iface.store, stack, db_addr, DEFAULT_DB_SLOT)
     if not okdb then
-      return nil, "database set failed: " .. tostring(errdb)
+      return nil, "database store failed: " .. tostring(errdb)
     end
     local ok, err = pcall(iface.setInterfaceConfiguration, slot, db_addr, DEFAULT_DB_SLOT, stack.size or stack.count or 1)
     if not ok then
