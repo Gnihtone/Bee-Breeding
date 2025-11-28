@@ -27,11 +27,15 @@ local function is_pure(stack)
   return pure, name
 end
 
-local function is_pristine_princess(stack)
+local function is_princess(stack)
   if not stack or not stack.individual then
     return false
   end
-  if stack.name ~= "Forestry:beePrincessGE" then
+  return stack.name == "Forestry:beePrincessGE"
+end
+
+local function is_pristine_princess(stack)
+  if not is_princess(stack) then
     return false
   end
   return stack.individual.isNatural == true
@@ -41,4 +45,5 @@ return {
   get_species = get_species,
   is_pure = is_pure,
   is_pristine_princess = is_pristine_princess,
+  is_princess = is_princess,
 }
