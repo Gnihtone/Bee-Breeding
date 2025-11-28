@@ -53,8 +53,13 @@ local function new(addr, nodes, tp_map, db_addr)
   -- Configure interface to provide a target stack (by descriptor).
   local function configure(stack, slot)
     slot = slot or DEFAULT_SLOT
+    local filter = {
+      name = stack.name,
+      label = stack.label,
+      fingerprint = stack.fingerprint,
+    }
     -- iface.store(filter, dbAddress, startSlot, count)
-    local okdb, errdb = pcall(iface.store, stack, db_addr, DEFAULT_DB_SLOT, 1)
+    local okdb, errdb = pcall(iface.store, filter, db_addr, DEFAULT_DB_SLOT, 1)
     if not okdb then
       return nil, "database store failed: " .. tostring(errdb)
     end

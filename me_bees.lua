@@ -66,9 +66,15 @@ local function new(addr, nodes, tp_map, db_addr)
   -- Configure slot to output the desired bee stack.
   function self:set_config(slot, stack)
     slot = slot or DEFAULT_SLOT
+    -- Build a loose filter: matching by name/label/fingerprint to avoid over-constraining.
+    local filter = {
+      name = stack.name,
+      label = stack.label,
+      fingerprint = stack.fingerprint,
+    }
     -- Store descriptor via ME interface into database slot using filter-based store.
     -- iface.store(filter, dbAddress, startSlot, count)
-    local okdb, errdb = pcall(iface.store, stack, db_addr, DEFAULT_DB_SLOT, 1)
+    local okdb, errdb = pcall(iface.store, filter, db_addr, DEFAULT_DB_SLOT, 1)
     if not okdb then
       return nil, "database store failed: " .. tostring(errdb)
     end
