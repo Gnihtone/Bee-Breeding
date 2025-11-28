@@ -24,7 +24,7 @@ local function get_species_map(apiary)
     return {}
   end
   local map = {}
-  for _, spec in pairs(data[1]) do
+  for _, spec in pairs(data) do
     local name = spec.name or spec.displayName or spec.uid
     if not name and type(spec.getName) == "function" then
       local okn, n = pcall(spec.getName)
@@ -61,7 +61,7 @@ local function main()
   end
 
   local mutations = {}
-  for _, entry in pairs(data[1]) do
+  for _, entry in pairs(data) do
     local child = entry.result
     local p1 = entry.allele1
     local p2 = entry.allele2
