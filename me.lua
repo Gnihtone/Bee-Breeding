@@ -53,7 +53,11 @@ local function new(addr, nodes, tp_map, db_addr)
   -- Configure interface to provide a target stack (by descriptor).
   local function configure(stack, slot)
     slot = slot or DEFAULT_SLOT
-    local filter = {label = stack.label or stack.name}
+    local filter = {}
+    if stack.name then filter.name = stack.name end
+    if stack.label then filter.label = stack.label end
+    if stack.fingerprint then filter.fingerprint = stack.fingerprint end
+    if stack.size then filter.size = stack.size end
     -- iface.store(filter, dbAddress, startSlot, count)
     db.clear(DEFAULT_DB_SLOT)
     local okdb, errdb = pcall(iface.store, filter, db_addr, DEFAULT_DB_SLOT, 1)

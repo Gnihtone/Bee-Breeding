@@ -66,10 +66,12 @@ local function new(addr, nodes, tp_map, db_addr)
   -- Configure slot to output the desired bee stack.
   function self:set_config(slot, stack)
     slot = slot or DEFAULT_SLOT
-    -- Minimal filter: prefer label, fallback to name.
-    local filter = {label = stack.label or stack.name}
-    -- Store descriptor via ME interface into database slot using filter-based store.
-    -- iface.store(filter, dbAddress, startSlot, count)
+    -- Build filter matching ME driver expectations: prefer name/fingerprint/label and size for uniqueness.
+    local filter = {}
+    if stack.name then filter.name = stack.name end
+    if stack.label then filter.label = stack.label end
+    if stack.fingerprint then filter.fingerprint = stack.fingerprint end
+    if stack.size then filter.size = stack.size end
     db.clear(DEFAULT_DB_SLOT)
     local okdb, errdb = pcall(iface.store, filter, db_addr, DEFAULT_DB_SLOT, 1)
     if not okdb then
