@@ -98,6 +98,10 @@ local function first_free_slot(nodes)
   return inv:first_free_slot(nodes)
 end
 
+local function is_bee(stack)
+  return stack and (stack.name == "Forestry:beePrincessGE" or stack.name == "Forestry:beeDroneGE" or stack.name == "Forestry:beeQueenGE")
+end
+
 local function clear_buffer()
   local node, tp = tp_utils.pick_node(tp_map, bufferNodes)
   if not node or not tp then return end
@@ -106,6 +110,10 @@ local function clear_buffer()
   for slot = 1, size do
     local stack = tp.getStackInSlot(node.side, slot)
     if stack then
+      -- Do not touch non-bee stacks (e.g., role markers or stray items).
+      if not is_bee(stack) then
+        goto continue_slot
+      end
       local pure, sp = analyzer.is_pure(stack)
       if pure and sp then
         if bee_me then
@@ -131,6 +139,7 @@ local function clear_buffer()
         end
       end
     end
+    ::continue_slot::
   end
 end
 
