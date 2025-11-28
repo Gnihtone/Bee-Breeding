@@ -66,24 +66,15 @@ local function new(addr, nodes, tp_map, db_addr)
   -- Configure slot to output the desired bee stack.
   function self:set_config(slot, stack)
     slot = slot or DEFAULT_SLOT
-    -- Store descriptor via ME interface into database slot.
-    local okdb, errdb = pcall(iface.store, stack, db_addr, DEFAULT_DB_SLOT)
+    -- Store descriptor via ME interface into database slot using filter-based store.
+    -- iface.store(filter, dbAddress, startSlot, count)
+    local okdb, errdb = pcall(iface.store, stack, db_addr, DEFAULT_DB_SLOT, 1)
     if not okdb then
       return nil, "database store failed: " .. tostring(errdb)
     end
     local stored = db.get(DEFAULT_DB_SLOT)
     if not stored then
-      -- Fallback: some OC versions have db.set; try to set descriptor directly.
-      if db.set then
-        local okset, errset = pcall(db.set, DEFAULT_DB_SLOT, stack)
-        if not okset then
-          return nil, "database slot empty after store; fallback set failed: " .. tostring(errset)
-        end
-        stored = db.get(DEFAULT_DB_SLOT)
-      end
-      if not stored then
-        return nil, "database slot empty after store"
-      end
+      return nil, "database slot empty after store"
     end
     local ok, err = pcall(iface.setInterfaceConfiguration, slot, db_addr, DEFAULT_DB_SLOT, stack.size or stack.count or 1)
     if not ok then

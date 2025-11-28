@@ -53,22 +53,14 @@ local function new(addr, nodes, tp_map, db_addr)
   -- Configure interface to provide a target stack (by descriptor).
   local function configure(stack, slot)
     slot = slot or DEFAULT_SLOT
-    local okdb, errdb = pcall(iface.store, stack, db_addr, DEFAULT_DB_SLOT)
+    -- iface.store(filter, dbAddress, startSlot, count)
+    local okdb, errdb = pcall(iface.store, stack, db_addr, DEFAULT_DB_SLOT, 1)
     if not okdb then
       return nil, "database store failed: " .. tostring(errdb)
     end
     local stored = db.get(DEFAULT_DB_SLOT)
     if not stored then
-      if db.set then
-        local okset, errset = pcall(db.set, DEFAULT_DB_SLOT, stack)
-        if not okset then
-          return nil, "database slot empty after store; fallback set failed: " .. tostring(errset)
-        end
-        stored = db.get(DEFAULT_DB_SLOT)
-      end
-      if not stored then
-        return nil, "database slot empty after store"
-      end
+      return nil, "database slot empty after store"
     end
     local ok, err = pcall(iface.setInterfaceConfiguration, slot, db_addr, DEFAULT_DB_SLOT, stack.size or stack.count or 1)
     if not ok then
