@@ -142,7 +142,9 @@ local function request_parent(species, expect_princess)
     if not targetSlot then
       return nil, "buffer is full, cannot request " .. tostring(species)
     end
-    local moved, reqErr = bee_me:request_species(species, bufferNodes, targetSlot)
+    -- Princess: request 1; Drone: request up to 8 to have buffer for changing princess species.
+    local count = expect_princess and 1 or 8
+    local moved, reqErr = bee_me:request_species(species, bufferNodes, targetSlot, nil, nil, count)
     if not moved or moved == 0 then
       return nil, "failed to request " .. species .. " from bee ME: " .. tostring(reqErr)
     end
@@ -368,12 +370,17 @@ if discovery_mode then
       log("skip step for " .. step.child .. ": " .. tostring(err1))
       goto continue_step_discovery
     end
-    local ok2, err2 = ensure_drone_available(step.p2, true)
-    if not ok2 then
-      log("skip step for " .. step.child .. ": " .. tostring(err2))
+    local ok2a, err2a = ensure_drone_available(step.p1, true)
+    if not ok2a then
+      log("skip step for " .. step.child .. ": " .. tostring(err2a))
       goto continue_step_discovery
     end
-    bk:start(step.child, step.reqs)
+    local ok2b, err2b = ensure_drone_available(step.p2, true)
+    if not ok2b then
+      log("skip step for " .. step.child .. ": " .. tostring(err2b))
+      goto continue_step_discovery
+    end
+  bk:start(step.child, step.reqs, {p1 = step.p1, p2 = step.p2})
     while true do
       local state = bk:tick()
       log("state: " .. tostring(state))
@@ -396,9 +403,12 @@ else
     log(string.format("Step %d/%d: %s x %s -> %s", i, #plan, step.p1, step.p2, step.child))
     local ok1, err1 = ensure_princess_available(step.p1, false)
     if not ok1 then fatal(err1) end
-    local ok2, err2 = ensure_drone_available(step.p2, false)
-    if not ok2 then fatal(err2) end
-    bk:start(step.child, step.reqs)
+    -- Preload drones for both parents to stabilize if princess mutates mid-way.
+    local ok2a, err2a = ensure_drone_available(step.p1, false)
+    if not ok2a then fatal(err2a) end
+    local ok2b, err2b = ensure_drone_available(step.p2, false)
+    if not ok2b then fatal(err2b) end
+    bk:start(step.child, step.reqs, {p1 = step.p1, p2 = step.p2})
     while true do
       local state = bk:tick()
       log("state: " .. tostring(state))

@@ -25,13 +25,16 @@ local function is_princess(stack)
   return stack and stack.name == "Forestry:beePrincessGE"
 end
 
-local function scan_buffer(tp_map, bufferNodes, targetSpecies)
+local function scan_buffer(tp_map, bufferNodes, opts)
+  opts = opts or {}
+  local targetSpecies = opts.target
   local info = {
     princess = nil,
     princess_pure = false,
     princess_pristine = false,
     drones_total = 0,
     drones_pure = 0,
+    princess_species = nil,
   }
   local node, tp = tp_utils.pick_node(tp_map, bufferNodes)
   if not node or not tp then return info end
@@ -42,18 +45,15 @@ local function scan_buffer(tp_map, bufferNodes, targetSpecies)
     if stack then
       if is_princess(stack) then
         local pure, species = analyzer.is_pure(stack)
-        if not targetSpecies or species == targetSpecies then
-          info.princess = info.princess or {slot = slot, stack = stack}
-          info.princess_pure = pure
-          info.princess_pristine = analyzer.is_pristine_princess(stack)
-        end
+        info.princess_species = species
+        info.princess = info.princess or {slot = slot, stack = stack}
+        info.princess_pure = pure
+        info.princess_pristine = analyzer.is_pristine_princess(stack)
       elseif is_drone(stack) then
         local pure, species = analyzer.is_pure(stack)
-        if not targetSpecies or species == targetSpecies then
-          info.drones_total = info.drones_total + (stack.size or 1)
-          if pure then
-            info.drones_pure = info.drones_pure + (stack.size or 1)
-          end
+        info.drones_total = info.drones_total + (stack.size or 1)
+        if pure then
+          info.drones_pure = info.drones_pure + (stack.size or 1)
         end
       end
     end
@@ -178,12 +178,79 @@ local function analyze_buffer(tp_map, bufferNodes, analyzerNodes, targetSpecies,
   return true
 end
 
+-- Pick which pair to load:
+-- If a princess of child species exists -> use child princess + any drone of child species (pure preferred in REPRO).
+-- Otherwise use parent princess (any) + any drone of the other parent species.
+local function pick_pair(tp_map, bufferNodes, parents, prefer_pure_drone)
+  local node, tp = tp_utils.pick_node(tp_map, bufferNodes)
+  if not node or not tp then return nil, "no buffer access" end
+  local size = tp.getInventorySize(node.side)
+  if not size then return nil, "buffer empty" end
+
+  local princess_slot, princess_species = nil, nil
+  -- Pick first princess.
+  for slot = 1, size do
+    local stack = tp.getStackInSlot(node.side, slot)
+    if is_princess(stack) then
+      princess_slot = slot
+      princess_species = select(2, analyzer.is_pure(stack))
+      break
+    end
+  end
+  if not princess_slot then
+    return nil, "no princess in buffer"
+  end
+
+  local target_drone_species
+  if princess_species == parents.child then
+    target_drone_species = parents.child
+  else
+    -- If princess matches one parent, pick drones of the other parent.
+    if princess_species == parents.p1 then
+      target_drone_species = parents.p2
+    else
+      target_drone_species = parents.p1
+    end
+  end
+
+  local drone_slot = nil
+  local fallback = nil
+  for slot = 1, size do
+    local stack = tp.getStackInSlot(node.side, slot)
+    if is_drone(stack) then
+      local pure, sp = analyzer.is_pure(stack)
+      if sp == target_drone_species then
+        if prefer_pure_drone and pure then
+          drone_slot = slot
+          break
+        elseif not prefer_pure_drone then
+          if pure and not fallback then
+            fallback = slot -- pure but we keep looking for pure, take first if no better
+          elseif not pure and not fallback then
+            fallback = slot
+          end
+        elseif not fallback then
+          fallback = slot
+        end
+      end
+    end
+  end
+  if not drone_slot then
+    drone_slot = fallback
+  end
+  if not drone_slot then
+    return nil, "no drone in buffer for " .. tostring(target_drone_species)
+  end
+
+  return princess_slot, drone_slot, princess_species, target_drone_species
+end
+
 local function new(ctx)
   -- ctx: tp_map, apiaryNodes, bufferNodes, analyzerNodes, trashNodes, acclNodes, acclimNodes, bee_me (me_bees instance)
   local self = {
     state = STATES.IDLE,
     ctx = ctx or {},
-    target = nil,
+    target = nil, -- {species=child, parents={p1,p2}}
   }
 
   local function fail(err)
@@ -192,8 +259,8 @@ local function new(ctx)
     return self.state, err
   end
 
-  function self:start(targetSpecies, reqs)
-    self.target = {species = targetSpecies, reqs = reqs}
+  function self:start(childSpecies, reqs, parents)
+    self.target = {species = childSpecies, reqs = reqs, parents = parents or {}}
     self.state = STATES.LOAD
   end
 
@@ -208,7 +275,7 @@ local function new(ctx)
     if self.state == STATES.IDLE or self.state == STATES.ERROR then
       return self.state
     elseif self.state == STATES.LOAD then
-      local ok, err = analyze_buffer(tp_map, bufNodes, self.ctx.analyzerNodes, self.target.species, true)
+      local ok, err = analyze_buffer(tp_map, bufNodes, self.ctx.analyzerNodes, nil, true)
       if not ok then
         return fail("analyze before load failed: " .. tostring(err))
       end
@@ -216,30 +283,11 @@ local function new(ctx)
       if not ok then
         return fail("acclimatization failed: " .. tostring(err))
       end
-      local info = scan_buffer(tp_map, bufNodes, self.target.species)
-      if not info.princess then
-        return fail("no princess in buffer for load")
+      local ps, ds = pick_pair(tp_map, bufNodes, {p1 = self.target.parents.p1, p2 = self.target.parents.p2, child = self.target.species}, false)
+      if not ps then
+        return fail("load pair failed: " .. tostring(ds))
       end
-      local droneSlot = nil
-      local node, tp = tp_utils.pick_node(tp_map, bufNodes)
-      if not node or not tp then
-        return fail("no buffer access")
-      end
-      local size = tp.getInventorySize(node.side)
-      for slot = 1, size do
-        local stack = tp.getStackInSlot(node.side, slot)
-        if is_drone(stack) then
-          local _, sp = analyzer.is_pure(stack)
-          if sp == self.target.species then
-            droneSlot = slot
-            break
-          end
-        end
-      end
-      if not droneSlot then
-        return fail("no drone in buffer for load")
-      end
-      local loaded, lerr = load_pair(tp_map, apiaryNodes, bufNodes, info.princess.slot, droneSlot)
+      local loaded, lerr = load_pair(tp_map, apiaryNodes, bufNodes, ps, ds)
       if not loaded then
         return fail("failed to load apiary: " .. tostring(lerr))
       end
@@ -252,76 +300,56 @@ local function new(ctx)
       return self.state
     elseif self.state == STATES.COLLECT then
       local _, err = collect_to_buffer(tp_map, apiaryNodes, bufNodes)
-      local ok, aerr = analyze_buffer(tp_map, bufNodes, self.ctx.analyzerNodes, self.target.species, true)
+      local ok, aerr = analyze_buffer(tp_map, bufNodes, self.ctx.analyzerNodes, nil, true)
       if not ok then
         return fail("analyze failed: " .. tostring(aerr))
       end
       self.state = STATES.EVAL
       return self.state
     elseif self.state == STATES.EVAL then
-      local info = scan_buffer(tp_map, bufNodes, self.target.species)
-      if info.princess and info.princess_pure and info.princess_pristine and info.drones_pure >= 64 then
-        self.state = STATES.DONE
+      local info = scan_buffer(tp_map, bufNodes, {target = self.target.species})
+      if info.princess and info.princess_species == self.target.species then
+        if info.princess_pure and info.princess_pristine and info.drones_pure >= 64 then
+          self.state = STATES.DONE
+        else
+          self.state = STATES.STABILIZE
+        end
       else
+        -- child not yet present, continue breeding parents.
         self.state = STATES.STABILIZE
       end
       return self.state
     elseif self.state == STATES.STABILIZE then
-      local info = scan_buffer(tp_map, bufNodes, self.target.species)
+      local info = scan_buffer(tp_map, bufNodes, {target = self.target.species})
       if not info.princess then
         return fail("no princess during stabilize")
       end
-      if info.princess_pure and info.princess_pristine then
+      if info.princess_species == self.target.species and info.princess_pure and info.princess_pristine then
         self.state = STATES.REPRO
         return self.state
       end
-      local node, tp = tp_utils.pick_node(tp_map, bufNodes)
-      if not node or not tp then return fail("no buffer access") end
-      local droneSlot = nil
-      local size = tp.getInventorySize(node.side)
-      for slot = 1, size do
-        local stack = tp.getStackInSlot(node.side, slot)
-        if is_drone(stack) then
-          local _, sp = analyzer.is_pure(stack)
-          if sp == self.target.species then
-            droneSlot = slot
-            break
-          end
-        end
+
+      local ps, ds = pick_pair(tp_map, bufNodes, {p1 = self.target.parents.p1, p2 = self.target.parents.p2, child = self.target.species}, false)
+      if not ps then
+        return fail("pick_pair failed: " .. tostring(ds))
       end
-      if not droneSlot then
-        return fail("no drone for stabilize")
-      end
-      local loaded, lerr = load_pair(tp_map, apiaryNodes, bufNodes, info.princess.slot, droneSlot)
+      local loaded, lerr = load_pair(tp_map, apiaryNodes, bufNodes, ps, ds)
       if not loaded then
         return fail("failed to load apiary (stabilize): " .. tostring(lerr))
       end
       self.state = STATES.WAIT
       return self.state
     elseif self.state == STATES.REPRO then
-      local info = scan_buffer(tp_map, bufNodes, self.target.species)
+      local info = scan_buffer(tp_map, bufNodes, {target = self.target.species})
       if info.princess_pure and info.princess_pristine and info.drones_pure >= 64 then
         self.state = STATES.DONE
         return self.state
       end
-      local node, tp = tp_utils.pick_node(tp_map, bufNodes)
-      if not node or not tp then return fail("no buffer access") end
-      local droneSlot = nil
-      local size = tp.getInventorySize(node.side)
-      for slot = 1, size do
-        local stack = tp.getStackInSlot(node.side, slot)
-        if is_drone(stack) then
-          local pure, sp = analyzer.is_pure(stack)
-          if sp == self.target.species and pure then
-            droneSlot = slot
-            break
-          end
-        end
+      local ps, ds = pick_pair(tp_map, bufNodes, {p1 = self.target.parents.p1, p2 = self.target.parents.p2, child = self.target.species}, true)
+      if not ps then
+        return fail("pick_pair failed: " .. tostring(ds))
       end
-      if not droneSlot then
-        return fail("no pure drone for reproduction")
-      end
-      local loaded, lerr = load_pair(tp_map, apiaryNodes, bufNodes, info.princess.slot, droneSlot)
+      local loaded, lerr = load_pair(tp_map, apiaryNodes, bufNodes, ps, ds)
       if not loaded then
         return fail("failed to load apiary (repro): " .. tostring(lerr))
       end
@@ -341,7 +369,7 @@ local function new(ctx)
             if not moved or moved == 0 then
               return fail("failed to return bee to bee ME from slot " .. slot .. (merr and (" :: " .. tostring(merr)) or ""))
             end
-          elseif is_drone(stack) and self.ctx.trashNodes then
+          elseif is_drone(stack) and self.ctx.trashNodes and sp ~= self.target.species then
             local route, terr = tp_utils.find_common(tp_map, bufNodes, self.ctx.trashNodes)
             if not route then
               return fail("no common transposer to trash: " .. tostring(terr))

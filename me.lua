@@ -68,7 +68,8 @@ local function new(addr, nodes, tp_map, db_addr)
     if not stored then
       return nil, "database slot empty after store"
     end
-    local ok, err = pcall(iface.setInterfaceConfiguration, slot, db_addr, DEFAULT_DB_SLOT, stack.size or stack.count or 1)
+    -- Default to size 1 to avoid over-requesting stacks (non-stackables).
+    local ok, err = pcall(iface.setInterfaceConfiguration, slot, db_addr, DEFAULT_DB_SLOT, 1)
     if not ok then
       return nil, "setInterfaceConfiguration failed: " .. tostring(err)
     end

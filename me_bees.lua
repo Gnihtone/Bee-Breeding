@@ -64,7 +64,7 @@ local function new(addr, nodes, tp_map, db_addr)
   end
 
   -- Configure slot to output the desired bee stack.
-  function self:set_config(slot, stack)
+  function self:set_config(slot, stack, count)
     slot = slot or DEFAULT_SLOT
     -- Build filter matching ME driver expectations: prefer name/fingerprint/label and size for uniqueness.
     local filter = {}
@@ -81,7 +81,8 @@ local function new(addr, nodes, tp_map, db_addr)
     if not stored then
       return nil, "database slot empty after store"
     end
-    local ok, err = pcall(iface.setInterfaceConfiguration, slot, db_addr, DEFAULT_DB_SLOT, stack.size or stack.count or 1)
+    local req_count = count or 1
+    local ok, err = pcall(iface.setInterfaceConfiguration, slot, db_addr, DEFAULT_DB_SLOT, req_count)
     if not ok then
       return nil, "setInterfaceConfiguration failed: " .. tostring(err)
     end
@@ -111,13 +112,13 @@ local function new(addr, nodes, tp_map, db_addr)
   end
 
   -- High-level: request a species and pull it to target inventory nodes/slot.
-  function self:request_species(speciesName, targetNodes, targetSlot, slot, waitSeconds)
+  function self:request_species(speciesName, targetNodes, targetSlot, slot, waitSeconds, count)
     slot = slot or DEFAULT_SLOT
     local stack = self:find_species(speciesName)
     if not stack then
       return nil, "species not found in bee ME: " .. tostring(speciesName)
     end
-    local ok, err = self:set_config(slot, stack)
+    local ok, err = self:set_config(slot, stack, count)
     if not ok then
       return nil, err
     end
