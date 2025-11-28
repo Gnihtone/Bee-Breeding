@@ -11,22 +11,16 @@ local function trim(s)
   return (s:gsub("^%s+", ""):gsub("%s+$", ""))
 end
 
-local function norm_scalar(s)
-  if not s then return nil end
-  return (tostring(s):upper():gsub("%s+", "_"))
-end
-
 local function ensure_apiary()
-  if not component.isAvailable("apiary") then
-    error("apiary component not found")
-  end
-  return component.apiary
+  local apiary_addr = component.list("tile_for_apiculture")()
+  if apiary_addr then return component.proxy(apiary_addr) end
+  error("apiary component not found")
 end
 
 local function get_species_map(apiary)
   local ok, data = pcall(apiary.listAllSpecies)
   if not ok or not data or not data[1] then
-    io.stderr:write("warn: cannot read species list; defaulting to NORMAL/NORMAL\n")
+    io.stderr:write("warn: cannot read species list; requirements will be empty\n")
     return {}
   end
   local map = {}
@@ -38,41 +32,12 @@ local function get_species_map(apiary)
     end
     if name then
       map[name] = {
-        climate = norm_scalar(spec.temperature or spec.climate) or "NORMAL",
-        humidity = norm_scalar(spec.humidity) or "NORMAL",
+        climate = tostring(spec.temperature or spec.climate or "Normal"),
+        humidity = tostring(spec.humidity or "Normal"),
       }
     end
   end
   return map
-end
-
-local function parse_conditions(list, defaults)
-  local req = {
-    climate = defaults.climate or "NORMAL",
-    humidity = defaults.humidity or "NORMAL",
-    block = defaults.block or "none",
-    dim = defaults.dim or "none",
-  }
-  for _, cond in ipairs(list or {}) do
-    local lc = string.lower(tostring(cond))
-    local hv = lc:match("^requires%s+([%w%s%-]+)%s+humidity")
-    if hv then
-      req.humidity = norm_scalar(hv) or req.humidity
-    end
-    local cv = lc:match("^requires%s+([%w%s%-]+)%s+temperature") or lc:match("^requires%s+([%w%s%-]+)%s+climate")
-    if cv then
-      req.climate = norm_scalar(cv) or req.climate
-    end
-    local block = lc:match("^requires%s+(.+)%s+as a foundation") or lc:match("^requires%s+(.+)%s+as foundation")
-    if block then
-      req.block = trim(cond:gsub("Requires%s+", ""):gsub("%s+as a foundation%.?", ""))
-    end
-    local dim = lc:match("^required%s+dimension%s+(.+)") or lc:match("^requires%s+dimension%s+(.+)")
-    if dim then
-      req.dim = trim(cond:gsub("Required Dimension%s+", ""):gsub("Requires Dimension%s+", ""))
-    end
-  end
-  return req
 end
 
 local function write_lines(path, lines)
@@ -96,35 +61,35 @@ local function main()
   end
 
   local mutations = {}
-  local reqs_by_child = {}
-
   for _, entry in pairs(data[1]) do
     local child = entry.result
     local p1 = entry.allele1
     local p2 = entry.allele2
     if child and p1 and p2 then
-      table.insert(mutations, string.format("%s:%s,%s", child, p1, p2))
-      if not reqs_by_child[child] then
-        local base = species_map[child] or {climate = "NORMAL", humidity = "NORMAL"}
-        reqs_by_child[child] = parse_conditions(entry.specialConditions or {}, {
-          climate = base.climate,
-          humidity = base.humidity,
-          block = "none",
-          dim = "none",
-        })
+      local block = "none"
+      local other_list = {}
+      for _, cond in ipairs(entry.specialConditions or {}) do
+        local cstr = tostring(cond)
+        local block_raw = cstr:match("^Requires%s+(.+)%s+as a foundation%.?") or cstr:match("^Requires%s+(.+)%s+as foundation%.?")
+        if block_raw then
+          block = trim(block_raw)
+        else
+          table.insert(other_list, cstr)
+        end
       end
+      local other = (#other_list > 0) and table.concat(other_list, " | ") or "none"
+      table.insert(mutations, string.format("%s:%s,%s;block:%s;other:%s", child, p1, p2, block, other))
     end
   end
 
   table.sort(mutations)
   local req_lines = {}
   local keys = {}
-  for k in pairs(reqs_by_child) do table.insert(keys, k) end
+  for k in pairs(species_map) do table.insert(keys, k) end
   table.sort(keys)
-  for _, child in ipairs(keys) do
-    local r = reqs_by_child[child]
-    table.insert(req_lines, string.format("%s;climate:%s;humidity:%s;block:%s;dim:%s",
-      child, r.climate, r.humidity, r.block, r.dim))
+  for _, name in ipairs(keys) do
+    local r = species_map[name]
+    table.insert(req_lines, string.format("%s;climate:%s;humidity:%s", name, r.climate, r.humidity))
   end
 
   write_lines(MUT_FILE, mutations)
