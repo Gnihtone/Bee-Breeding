@@ -6,7 +6,7 @@ local analyzer = require("analyzer")
 local function build_have_set(bee_iface)
   local have = {}
   if not bee_iface then return have end
-  local items = bee_iface.getAvailableItems()
+  local items = bee_iface.getItemsInNetwork()
   if not items then return have end
   for _, entry in ipairs(items) do
     if entry.individual then

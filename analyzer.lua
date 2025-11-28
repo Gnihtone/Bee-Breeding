@@ -21,7 +21,7 @@ local function is_pure(stack)
   if not active or not inactive then
     return false, nil
   end
-  local pure = active.species == inactive.species
+  local pure = active.species.uid == inactive.species.uid
   -- Return displayName if available, otherwise species id.
   local name = stack.individual.displayName or active.species
   return pure, name

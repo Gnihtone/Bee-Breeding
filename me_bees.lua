@@ -6,9 +6,10 @@ local tp_utils = require("tp_utils")
 
 local DEFAULT_SLOT = 9 -- use the last config slot by convention
 local DEFAULT_WAIT = 20 -- seconds to wait for ME to populate after config
+local DEFAULT_DB_SLOT = 1 -- use first db slot for ghost stacks
 
 local function find_stack_by_species(iface, speciesName)
-  local items = iface.getAvailableItems()
+  local items = iface.getItemsInNetwork()
   if not items then return nil end
   for _, entry in ipairs(items) do
     local stack = entry
@@ -27,7 +28,8 @@ end
 
 -- nodes: list of {tp, side} pointing at the bee ME interface inventory.
 -- tp_map: addr -> proxy
-local function new(addr, nodes, tp_map)
+-- db_addr: optional database address to use; if nil, first database is used.
+local function new(addr, nodes, tp_map, db_addr)
   if not addr then
     return nil, "bee ME interface address missing"
   end
@@ -36,6 +38,17 @@ local function new(addr, nodes, tp_map)
   end
   if not tp_map then
     return nil, "transposer map required"
+  end
+  if not db_addr then
+    db_addr = component.list("database")()
+  end
+  if not db_addr then
+    return nil, "database component required for bee ME (setInterfaceConfiguration)"
+  end
+
+  local db = component.proxy(db_addr)
+  if not db or not db.set then
+    return nil, "invalid database component or missing db.set"
   end
 
   local iface = component.proxy(addr)
@@ -53,7 +66,12 @@ local function new(addr, nodes, tp_map)
   -- Configure slot to output the desired bee stack.
   function self:set_config(slot, stack)
     slot = slot or DEFAULT_SLOT
-    local ok, err = pcall(iface.setInterfaceConfiguration, slot, stack)
+    -- Write descriptor into database slot.
+    local okdb, errdb = pcall(db.set, DEFAULT_DB_SLOT, stack)
+    if not okdb then
+      return nil, "database set failed: " .. tostring(errdb)
+    end
+    local ok, err = pcall(iface.setInterfaceConfiguration, slot, db_addr, DEFAULT_DB_SLOT, stack.size or stack.count or 1)
     if not ok then
       return nil, "setInterfaceConfiguration failed: " .. tostring(err)
     end
