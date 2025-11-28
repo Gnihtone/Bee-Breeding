@@ -170,14 +170,17 @@ end
 
 local ensure_princess_available
 
-local function ensure_drone_available(species, allow_skip)
-  if have_count(species) >= 64 then
+-- want_bulk=false: just get a drone into buffer.
+-- want_bulk=true: breed up to 64 pure drones using beekeeper.
+local function ensure_drone_available(species, allow_skip, want_bulk)
+  want_bulk = want_bulk or false
+  if want_bulk and have_count(species) >= 64 then
     return true
   end
   local ok, err = request_parent(species, false)
   if ok then
     have_counts[species] = (have_counts[species] or 0) + 1
-    if allow_skip and have_count(species) < 64 then
+    if want_bulk and have_count(species) < 64 then
       log("drone count for " .. species .. " below 64, attempting to breed up")
       local reqs = bee_db.get_requirements(db, species) or {climate = "NORMAL", humidity = "NORMAL", block = "none", dim = "none"}
       local bk_repro = beekeeper.new({
@@ -190,11 +193,11 @@ local function ensure_drone_available(species, allow_skip)
         acclimNodes = acclimNodes,
         bee_me = bee_me,
       })
-      local okP, errP = ensure_princess_available(species, allow_skip)
+      local okP, errP = ensure_princess_available(species, allow_skip, false)
       if not okP then
         return nil, errP
       end
-      bk_repro:start(species, reqs)
+      bk_repro:start(species, reqs, {p1 = species, p2 = species})
       while have_count(species) < 64 do
         local state = bk_repro:tick()
         if state == beekeeper.STATES.ERROR then
@@ -237,10 +240,13 @@ local function collect_ancestors(species)
   return out
 end
 
-ensure_princess_available = function(species, allow_skip)
+-- want_bulk=false: just fetch a princess.
+-- want_bulk=true: breed up to 64 drones using this princess.
+ensure_princess_available = function(species, allow_skip, want_bulk)
+  want_bulk = want_bulk or false
   local ok, err = request_parent(species, true)
   if ok then
-    if have_count(species) < 64 then
+    if want_bulk and have_count(species) < 64 then
       log("drone count for " .. species .. " below 64, breeding up with obtained princess")
       local reqs = bee_db.get_requirements(db, species) or {climate = "NORMAL", humidity = "NORMAL", block = "none", dim = "none"}
       local bk_repro = beekeeper.new({
@@ -253,11 +259,11 @@ ensure_princess_available = function(species, allow_skip)
         acclimNodes = acclimNodes,
         bee_me = bee_me,
       })
-      local dok, derr = ensure_drone_available(species, allow_skip)
+      local dok, derr = ensure_drone_available(species, allow_skip, true)
       if not dok then
         return nil, derr
       end
-      bk_repro:start(species, reqs)
+      bk_repro:start(species, reqs, {p1 = species, p2 = species})
       while have_count(species) < 64 do
         local state = bk_repro:tick()
         if state == beekeeper.STATES.ERROR then
