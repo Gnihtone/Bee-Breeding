@@ -26,66 +26,62 @@ local function classify_role(marker)
   return marker
 end
 
-local function find_transposer()
-  local addr = component.list("transposer")()
-  if not addr then
-    return nil, "No transposer found"
-  end
-  return component.proxy(addr)
-end
-
 local function discover()
-  local tp, err = find_transposer()
-  if not tp then
-    return nil, err
+  local transposers = {}
+  for addr in component.list("transposer") do
+    table.insert(transposers, addr)
+  end
+  if #transposers == 0 then
+    return nil, "No transposers found"
   end
 
   local devices = {
-    transposer = tp,
-    apiary = nil,
-    accl = nil,
-    analyzer = nil,
-    storages = {}, -- role -> side
-    me_interfaces = {} -- role -> {address=..., side=...}
+    transposers = transposers, -- list of addresses
+    storages = {}, -- role -> {nodes...}
+    apiary = {},
+    accl = {},
+    analyzer = {},
+    me_interfaces = {} -- role -> {address=?, nodes={...}}
   }
 
-  local side_roles = {}
-
-  -- Scan all six sides reachable by the selected transposer.
-  for _, side in ipairs({sides.bottom, sides.top, sides.north, sides.south, sides.west, sides.east}) do
-    local ok, invName = pcall(tp.getInventoryName, side)
-    if not ok or not invName then
-      goto continue_side
-    end
-
-    local lowerName = string.lower(invName)
-    local marker = read_marker_transposer(tp, side)
-    local role = classify_role(marker)
-
-    -- Device detection by inventory name.
-    if lowerName:find("tile.for.apiculture") or lowerName:find("alveary") then
-      devices.apiary = side
-    elseif lowerName:find("tile.labMachine") then
-      devices.accl = side
-    elseif lowerName:find("tile.for.core") then
-      devices.analyzer = side
-    elseif lowerName:find("interface") then
-      if role then
-        side_roles[role] = side
+  -- Scan all transposers and their six sides.
+  for _, addr in ipairs(transposers) do
+    local tp = component.proxy(addr)
+    for _, side in ipairs({sides.bottom, sides.top, sides.north, sides.south, sides.west, sides.east}) do
+      local ok, invName = pcall(tp.getInventoryName, side)
+      if not ok or not invName then
+        goto continue_side
       end
-    end
 
-    if role and not devices.storages[role] then
-      -- Only store if role is not a ME marker to avoid mixing.
-      if role ~= "ROLE:ME-MAIN" and role ~= "ROLE:ME-BEES" then
-        devices.storages[role] = side
+      local marker = read_marker_transposer(tp, side)
+      local role = classify_role(marker)
+      local lowerName = string.lower(invName)
+      local node = {tp = addr, side = side, marker = marker, name = invName}
+
+      -- Device detection by inventory name.
+      if lowerName:find("tile.for.apiculture") or lowerName:find("alveary") then
+        table.insert(devices.apiary, node)
+      elseif lowerName:find("tile.labMachine") then
+        table.insert(devices.accl, node)
+      elseif lowerName:find("tile.for.core") then
+        table.insert(devices.analyzer, node)
+      elseif lowerName:find("interface") then
+        if role then
+          devices.me_interfaces[role] = devices.me_interfaces[role] or {nodes = {}}
+          table.insert(devices.me_interfaces[role].nodes, node)
+        end
       end
-    end
 
-    ::continue_side::
+      if role and role ~= "ROLE:ME-MAIN" and role ~= "ROLE:ME-BEES" then
+        devices.storages[role] = devices.storages[role] or {}
+        table.insert(devices.storages[role], node)
+      end
+
+      ::continue_side::
+    end
   end
 
-  -- Map me_interface addresses to roles via slot-1 marker in interface config.
+  -- Map me_interface component addresses to roles via slot-1 marker in interface config.
   for addr in component.list("me_interface") do
     local iface = component.proxy(addr)
     local ok, cfg = pcall(function()
@@ -97,9 +93,8 @@ local function discover()
       local marker = cfg and marker_from_stack(cfg)
       local role = classify_role(marker)
       if role then
-        devices.me_interfaces[role] = devices.me_interfaces[role] or {}
-        devices.me_interfaces[role].address = addr
-        devices.me_interfaces[role].side = devices.me_interfaces[role].side or side_roles[role]
+        devices.me_interfaces[role] = devices.me_interfaces[role] or {nodes = {}}
+        devices.me_interfaces[role].address = devices.me_interfaces[role].address or addr
       end
     end
   end

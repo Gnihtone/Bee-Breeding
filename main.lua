@@ -12,6 +12,7 @@ local analyzer = require("analyzer")
 local bee_stock = require("bee_stock")
 local climate = require("climate")
 local beekeeper = require("beekeeper")
+local tp_utils = require("tp_utils")
 
 local function log(msg)
   io.write("[*] " .. msg .. "\n")
@@ -27,21 +28,27 @@ if not devices then
   fatal("discovery failed: " .. tostring(err))
 end
 
+if not devices.transposers or #devices.transposers == 0 then
+  fatal("no transposers found")
+end
+
+local tp_map = tp_utils.build_proxy_map(devices.transposers)
+
 log("discovery complete")
 
-if not devices.apiary then fatal("apiary not found") end
-if not devices.analyzer then fatal("analyzer not found") end
+if not devices.apiary or #devices.apiary == 0 then fatal("apiary not found") end
+if not devices.analyzer or #devices.analyzer == 0 then fatal("analyzer not found") end
 
 local bee_me_rec = devices.me_interfaces["ROLE:ME-BEES"]
 local main_me_rec = devices.me_interfaces["ROLE:ME-MAIN"]
 
-if not bee_me_rec then fatal("bee ME interface not found (ROLE:ME-BEES marker missing)") end
-if not main_me_rec then fatal("main ME interface not found (ROLE:ME-MAIN marker missing)") end
+if not bee_me_rec or not bee_me_rec.address or not bee_me_rec.nodes or #bee_me_rec.nodes == 0 then fatal("bee ME interface not found (ROLE:ME-BEES marker missing)") end
+if not main_me_rec or not main_me_rec.address or not main_me_rec.nodes or #main_me_rec.nodes == 0 then fatal("main ME interface not found (ROLE:ME-MAIN marker missing)") end
 
-local bee_me, err = me_bees.new(bee_me_rec.address, bee_me_rec.side, devices.transposer)
+local bee_me, err = me_bees.new(bee_me_rec.address, bee_me_rec.nodes, tp_map)
 if not bee_me then fatal("bee ME init failed: " .. tostring(err)) end
 
-local main_me, err = me_main.new(main_me_rec.address, main_me_rec.side, devices.transposer)
+local main_me, err = me_main.new(main_me_rec.address, main_me_rec.nodes, tp_map)
 if not main_me then fatal("main ME init failed: " .. tostring(err)) end
 
 -- Load mutations database.
@@ -67,73 +74,55 @@ do
 end
 
 -- Build inventory helper.
-local inv = inventory.new(devices.transposer, {
-  buffer = devices.storages["ROLE:BUFFER"],
-  trash = devices.storages["ROLE:TRASH"],
-  blocks = devices.storages["ROLE:BLOCKS"],
-  acclim = devices.storages["ROLE:ACCLIM"],
+local bufferNodes = devices.storages["ROLE:BUFFER"]
+local trashNodes = devices.storages["ROLE:TRASH"]
+local blocksNodes = devices.storages["ROLE:BLOCKS"]
+local acclimNodes = devices.storages["ROLE:ACCLIM"]
+
+if not bufferNodes or #bufferNodes == 0 then
+  fatal("buffer storage ROLE:BUFFER not found")
+end
+
+local inv = inventory.new(tp_map, {
+  buffer = bufferNodes,
+  trash = trashNodes,
+  blocks = blocksNodes,
+  acclim = acclimNodes,
 })
 
 if not inv then
   fatal("inventory init failed")
 end
 
-io.write("Enter target species (exact displayName), or 'auto' to discover new, empty to exit: ")
-local target = io.read("*l")
-if not target or target == "" then
-  log("exiting.")
-  os.exit(0)
-end
-
-local plan, perr
-local discovery_mode = false
-if target == "auto" then
-  discovery_mode = true
-else
-  plan, perr = planner.plan_to_target(db, target, have_counts)
-  if not plan then
-    fatal("planning failed: " .. tostring(perr))
-  end
-  log("plan length: " .. #plan)
-end
-
--- Prepare buffer utilities
-local bufferSide = devices.storages["ROLE:BUFFER"]
-if not bufferSide then
-  fatal("buffer storage ROLE:BUFFER not found")
-end
-
-local function first_free_slot(side)
-  local size = devices.transposer.getInventorySize(side)
-  if not size then return nil end
-  for slot = 1, size do
-    if not devices.transposer.getStackInSlot(side, slot) then
-      return slot
-    end
-  end
-  return nil
+local function first_free_slot(nodes)
+  return inv:first_free_slot(nodes)
 end
 
 local function clear_buffer()
-  local size = devices.transposer.getInventorySize(bufferSide)
+  local node, tp = tp_utils.pick_node(tp_map, bufferNodes)
+  if not node or not tp then return end
+  local size = tp.getInventorySize(node.side)
   if not size then return end
   for slot = 1, size do
-    local stack = devices.transposer.getStackInSlot(bufferSide, slot)
+    local stack = tp.getStackInSlot(node.side, slot)
     if stack then
       local pure, sp = analyzer.is_pure(stack)
       if pure and sp then
         if bee_me then
-          local moved = bee_me:return_bee(bufferSide, slot, stack.size or 1, 1)
+          local moved, merr = bee_me:return_bee(bufferNodes, slot, stack.size or 1, 1)
           if not moved or moved == 0 then
-            fatal("failed to return pure bee " .. tostring(sp) .. " to bee ME from buffer slot " .. slot)
+            fatal("failed to return pure bee " .. tostring(sp) .. " to bee ME from buffer slot " .. slot .. (merr and (" :: " .. tostring(merr)) or ""))
           end
         else
           fatal("pure bee " .. tostring(sp) .. " in buffer and bee ME unavailable")
         end
       else
-        local trash = devices.storages["ROLE:TRASH"]
-        if trash then
-          local moved = devices.transposer.transferItem(bufferSide, trash, stack.size or 1, slot)
+        if trashNodes then
+          local route, err = tp_utils.find_common(tp_map, bufferNodes, trashNodes)
+          if not route then
+            fatal("failed to move dirty bee to trash (no common transposer): " .. tostring(err))
+          end
+          local moved = route.tp.transferItem(route.a.side, route.b.side, stack.size or 1, slot)
           if not moved or moved == 0 then
             fatal("failed to move dirty bee to trash from buffer slot " .. slot)
           end
@@ -148,15 +137,16 @@ end
 local function request_parent(species, expect_princess)
   local attempts = 0
   while attempts < 5 do
-    local targetSlot = first_free_slot(bufferSide)
+    local targetSlot = first_free_slot(bufferNodes)
     if not targetSlot then
       return nil, "buffer is full, cannot request " .. tostring(species)
     end
-    local moved = bee_me:request_species(species, bufferSide, targetSlot)
+    local moved, reqErr = bee_me:request_species(species, bufferNodes, targetSlot)
     if not moved or moved == 0 then
-      return nil, "failed to request " .. species .. " from bee ME"
+      return nil, "failed to request " .. species .. " from bee ME: " .. tostring(reqErr)
     end
-    local stack = devices.transposer.getStackInSlot(bufferSide, targetSlot)
+    local node, tp = tp_utils.pick_node(tp_map, bufferNodes)
+    local stack = node and tp and tp.getStackInSlot(node.side, targetSlot)
     if stack and stack.individual then
       local pure, sp = analyzer.is_pure(stack)
       if sp == species then
@@ -168,37 +158,35 @@ local function request_parent(species, expect_princess)
       end
     end
     if stack then
-      bee_me:return_bee(bufferSide, targetSlot, stack.size or 1, 1)
+      bee_me:return_bee(bufferNodes, targetSlot, stack.size or 1, 1)
     end
     attempts = attempts + 1
   end
   return nil, "no suitable " .. (expect_princess and "princess" or "drone") .. " of " .. species
 end
 
+local ensure_princess_available
+
 local function ensure_drone_available(species, allow_skip)
-  -- If drone count already >=64, good.
   if have_count(species) >= 64 then
     return true
   end
-  -- Attempt to fetch a drone; if fetched, return it back to bee ME immediately.
   local ok, err = request_parent(species, false)
   if ok then
     have_counts[species] = (have_counts[species] or 0) + 1
-    -- If still below 64 and discovery is allowed, try to breed up.
     if allow_skip and have_count(species) < 64 then
       log("drone count for " .. species .. " below 64, attempting to breed up")
       local reqs = bee_db.get_requirements(db, species) or {climate = "NORMAL", humidity = "NORMAL", block = "none", dim = "none"}
       local bk_repro = beekeeper.new({
-        transposer = devices.transposer,
-        apiarySide = devices.apiary,
-        bufferSide = bufferSide,
-        analyzerSide = devices.analyzer,
-        trashSide = devices.storages["ROLE:TRASH"],
-        acclSide = devices.accl,
-        acclimSide = devices.storages["ROLE:ACCLIM"],
+        tp_map = tp_map,
+        apiaryNodes = devices.apiary,
+        bufferNodes = bufferNodes,
+        analyzerNodes = devices.analyzer,
+        trashNodes = devices.storages["ROLE:TRASH"],
+        acclNodes = devices.accl,
+        acclimNodes = acclimNodes,
         bee_me = bee_me,
       })
-      -- Need a princess of species; try to recover.
       local okP, errP = ensure_princess_available(species, allow_skip)
       if not okP then
         return nil, errP
@@ -246,25 +234,22 @@ local function collect_ancestors(species)
   return out
 end
 
-local function ensure_princess_available(species, allow_skip)
-  -- Try direct
+ensure_princess_available = function(species, allow_skip)
   local ok, err = request_parent(species, true)
   if ok then
-    -- Ensure drones exist in sufficient quantity for this species; if not, breed up using this princess.
     if have_count(species) < 64 then
       log("drone count for " .. species .. " below 64, breeding up with obtained princess")
       local reqs = bee_db.get_requirements(db, species) or {climate = "NORMAL", humidity = "NORMAL", block = "none", dim = "none"}
       local bk_repro = beekeeper.new({
-        transposer = devices.transposer,
-        apiarySide = devices.apiary,
-        bufferSide = bufferSide,
-        analyzerSide = devices.analyzer,
-        trashSide = devices.storages["ROLE:TRASH"],
-        acclSide = devices.accl,
-        acclimSide = devices.storages["ROLE:ACCLIM"],
+        tp_map = tp_map,
+        apiaryNodes = devices.apiary,
+        bufferNodes = bufferNodes,
+        analyzerNodes = devices.analyzer,
+        trashNodes = devices.storages["ROLE:TRASH"],
+        acclNodes = devices.accl,
+        acclimNodes = acclimNodes,
         bee_me = bee_me,
       })
-      -- We already have princess; need a drone. If none, try to fetch; if still none and allow_skip, bail.
       local dok, derr = ensure_drone_available(species, allow_skip)
       if not dok then
         return nil, derr
@@ -283,14 +268,12 @@ local function ensure_princess_available(species, allow_skip)
     end
     return true
   end
-  -- Fallback: try ancestors present in mutation tree that we may have.
   local candidates = collect_ancestors(species)
   if not candidates or #candidates == 0 then
     return nil, err or ("no mutation for " .. species)
   end
   for _, anc in ipairs(candidates) do
     if have_count(anc) == 0 then
-      -- skip ancestors we don't have pure drones for
       goto continue_anc
     end
     log("attempting to recover princess of " .. species .. " using ancestor princess " .. anc)
@@ -305,13 +288,13 @@ local function ensure_princess_available(species, allow_skip)
     end
     local reqs = bee_db.get_requirements(db, species) or {climate = "NORMAL", humidity = "NORMAL", block = "none", dim = "none"}
     local bk_recover = beekeeper.new({
-      transposer = devices.transposer,
-      apiarySide = devices.apiary,
-      bufferSide = bufferSide,
-      analyzerSide = devices.analyzer,
-      trashSide = devices.storages["ROLE:TRASH"],
-      acclSide = devices.accl,
-      acclimSide = devices.storages["ROLE:ACCLIM"],
+      tp_map = tp_map,
+      apiaryNodes = devices.apiary,
+      bufferNodes = bufferNodes,
+      analyzerNodes = devices.analyzer,
+      trashNodes = devices.storages["ROLE:TRASH"],
+      acclNodes = devices.accl,
+      acclimNodes = acclimNodes,
       bee_me = bee_me,
     })
     bk_recover:start(species, reqs)
@@ -345,15 +328,34 @@ local function available_mutations()
 end
 
 local bk = beekeeper.new({
-  transposer = devices.transposer,
-  apiarySide = devices.apiary,
-  bufferSide = bufferSide,
-  analyzerSide = devices.analyzer,
-  trashSide = devices.storages["ROLE:TRASH"],
-  acclSide = devices.accl,
-  acclimSide = devices.storages["ROLE:ACCLIM"],
+  tp_map = tp_map,
+  apiaryNodes = devices.apiary,
+  bufferNodes = bufferNodes,
+  analyzerNodes = devices.analyzer,
+  trashNodes = devices.storages["ROLE:TRASH"],
+  acclNodes = devices.accl,
+  acclimNodes = acclimNodes,
   bee_me = bee_me,
 })
+
+io.write("Enter target species (exact displayName), or 'auto' to discover new, empty to exit: ")
+local target = io.read("*l")
+if not target or target == "" then
+  log("exiting.")
+  os.exit(0)
+end
+
+local plan, perr
+local discovery_mode = false
+if target == "auto" then
+  discovery_mode = true
+else
+  plan, perr = planner.plan_to_target(db, target, have_counts)
+  if not plan then
+    fatal("planning failed: " .. tostring(perr))
+  end
+  log("plan length: " .. #plan)
+end
 
 if discovery_mode then
   local muts = available_mutations()

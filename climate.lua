@@ -2,6 +2,8 @@
 -- Acclimatization helper (assumes acclimatizer inventory layout: slot 5 princess, slot 6 reagent, slot 9 output).
 -- Reagent mapping must be configured by the user in CLIMATE_ITEMS / HUMIDITY_ITEMS.
 
+local tp_utils = require("tp_utils")
+
 local CLIMATE_ITEMS = {
   HOT = "Blaze Rod",
   WARM = "Blaze Rod",
@@ -33,11 +35,11 @@ local function select_reagent(req)
   return items
 end
 
-local function find_stack(transposer, side, matcher)
-  local size = transposer.getInventorySize(side)
+local function find_stack(tp, side, matcher)
+  local size = tp.getInventorySize(side)
   if not size then return nil end
   for slot = 1, size do
-    local stack = transposer.getStackInSlot(side, slot)
+    local stack = tp.getStackInSlot(side, slot)
     if stack and matcher(stack) then
       return slot, stack
     end
@@ -48,12 +50,13 @@ end
 -- Ensure princess from buffer is acclimatized according to req.
 -- Assumes: acclimatizer slots: 5=princess in, 6=reagent in, 9=output.
 -- Keeps slot 6 filled while waiting. Returns true on success, nil+err on timeout/missing reagent.
-local function ensure_princess(req, transposer, bufferSide, acclSide, acclimSide)
+-- bufferNodes/acclNodes/acclimNodes are node lists; tp_map maps transposer addresses to proxies.
+local function ensure_princess(req, tp_map, bufferNodes, acclNodes, acclimNodes)
   if not needs_acclimatization(req) then
     return true
   end
-  if not transposer or not bufferSide or not acclSide or not acclimSide then
-    return nil, "acclimatization requires transposer, buffer, accl and acclim sides"
+  if not tp_map or not bufferNodes or not acclNodes or not acclimNodes then
+    return nil, "acclimatization requires tp_map, buffer, accl and acclim nodes"
   end
 
   local reagents = select_reagent(req)
@@ -61,20 +64,32 @@ local function ensure_princess(req, transposer, bufferSide, acclSide, acclimSide
     return nil, "no reagents configured for climate/humidity"
   end
 
+  local route_buf_accl, rerr1 = tp_utils.find_common(tp_map, bufferNodes, acclNodes)
+  if not route_buf_accl then
+    return nil, "no common transposer for buffer->accl: " .. tostring(rerr1)
+  end
+  local route_acclim_accl, rerr2 = tp_utils.find_common(tp_map, acclimNodes, acclNodes)
+  if not route_acclim_accl then
+    return nil, "no common transposer for acclim->accl: " .. tostring(rerr2)
+  end
+
+  local tp_buf = route_buf_accl.tp
+  local tp_accl = route_acclim_accl.tp
+
   -- Find princess in buffer.
-  local princessSlot = find_stack(transposer, bufferSide, function(s) return s.name == "Forestry:beePrincessGE" end)
+  local princessSlot = find_stack(tp_buf, route_buf_accl.a.side, function(s) return s.name == "Forestry:beePrincessGE" end)
   if not princessSlot then
     return nil, "no princess in buffer to acclimatize"
   end
 
   local function ensure_reagent()
-    if transposer.getStackInSlot(acclSide, 6) then
+    if tp_accl.getStackInSlot(route_acclim_accl.b.side, 6) then
       return true
     end
     for _, label in ipairs(reagents) do
-      local reagentSlot = find_stack(transposer, acclimSide, function(s) return s.label == label or s.name == label end)
+      local reagentSlot = find_stack(tp_accl, route_acclim_accl.a.side, function(s) return s.label == label or s.name == label end)
       if reagentSlot then
-        local moved = transposer.transferItem(acclimSide, acclSide, 1, reagentSlot, 6)
+        local moved = tp_accl.transferItem(route_acclim_accl.a.side, route_acclim_accl.b.side, 1, reagentSlot, 6)
         if moved and moved > 0 then
           return true
         end
@@ -88,7 +103,7 @@ local function ensure_princess(req, transposer, bufferSide, acclSide, acclimSide
   end
 
   -- Move princess to acclimatizer slot 5.
-  local moved = transposer.transferItem(bufferSide, acclSide, 1, princessSlot, 5)
+  local moved = tp_buf.transferItem(route_buf_accl.a.side, route_buf_accl.b.side, 1, princessSlot, 5)
   if not moved or moved == 0 then
     return nil, "failed to move princess to acclimatizer"
   end
@@ -99,7 +114,7 @@ local function ensure_princess(req, transposer, bufferSide, acclSide, acclimSide
   local princessOut = nil
   while attempts < 600 do -- 5 minutes @0.5s
     ensure_reagent()
-    princessOut = transposer.getStackInSlot(acclSide, outSlot)
+    princessOut = tp_accl.getStackInSlot(route_acclim_accl.b.side, outSlot)
     if princessOut then break end
     attempts = attempts + 1
     os.sleep(0.5)
@@ -109,10 +124,10 @@ local function ensure_princess(req, transposer, bufferSide, acclSide, acclimSide
   end
 
   -- Move result back to buffer (append to first free slot).
-  local bufSize = transposer.getInventorySize(bufferSide)
+  local bufSize = tp_buf.getInventorySize(route_buf_accl.a.side)
   local targetSlot = nil
   for slot = 1, bufSize do
-    if not transposer.getStackInSlot(bufferSide, slot) then
+    if not tp_buf.getStackInSlot(route_buf_accl.a.side, slot) then
       targetSlot = slot
       break
     end
@@ -120,12 +135,12 @@ local function ensure_princess(req, transposer, bufferSide, acclSide, acclimSide
   if not targetSlot then
     return nil, "buffer is full, cannot return acclimatized princess"
   end
-  transposer.transferItem(acclSide, bufferSide, princessOut.size or 1, outSlot, targetSlot)
+  tp_accl.transferItem(route_acclim_accl.b.side, route_buf_accl.a.side, princessOut.size or 1, outSlot, targetSlot)
 
   -- Cleanup reagent if any leftover in slot 6.
-  local leftover = transposer.getStackInSlot(acclSide, 6)
+  local leftover = tp_accl.getStackInSlot(route_acclim_accl.b.side, 6)
   if leftover then
-    transposer.transferItem(acclSide, acclimSide, leftover.size or 1, 6)
+    tp_accl.transferItem(route_acclim_accl.b.side, route_acclim_accl.a.side, leftover.size or 1, 6)
   end
 
   return true

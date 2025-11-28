@@ -2,6 +2,7 @@
 -- Interact with main ME interface to ensure required blocks.
 
 local component = require("component")
+local tp_utils = require("tp_utils")
 
 local DEFAULT_SLOT = 9
 
@@ -16,15 +17,17 @@ local function find_stack_by_label(iface, label)
   return nil
 end
 
-local function new(addr, side, transposer)
+-- nodes: list of {tp, side} for the ME interface inventory
+-- tp_map: addr -> proxy
+local function new(addr, nodes, tp_map)
   if not addr then
     return nil, "main ME interface address missing"
   end
-  if not side then
-    return nil, "main ME interface side missing"
+  if not nodes or #nodes == 0 then
+    return nil, "main ME interface node missing"
   end
-  if not transposer then
-    return nil, "transposer required"
+  if not tp_map then
+    return nil, "transposer map required"
   end
 
   local iface = component.proxy(addr)
@@ -44,15 +47,9 @@ local function new(addr, side, transposer)
     return slot
   end
 
-  -- Attempt to pull one stack of the requested item into target side/slot.
-  local function pull_to(targetSide, targetSlot, slot)
-    slot = slot or DEFAULT_SLOT
-    local moved = transposer.transferItem(side, targetSide, 64, slot, targetSlot)
-    return moved
-  end
-
   -- Ensure block is present in storage by pulling from ME.
-  function self:ensure_block_by_label(label, targetSide, targetSlot)
+  -- targetNodes: list of nodes for destination inventory.
+  function self:ensure_block_by_label(label, targetNodes, targetSlot)
     local stack = find_stack_by_label(iface, label)
     if not stack then
       return nil, "block not found in ME: " .. tostring(label)
@@ -61,7 +58,11 @@ local function new(addr, side, transposer)
     if not slot then
       return nil, err
     end
-    local moved = pull_to(targetSide, targetSlot, slot)
+    local route, rerr = tp_utils.find_common(tp_map, nodes, targetNodes)
+    if not route then
+      return nil, "no common transposer for ME->target: " .. tostring(rerr)
+    end
+    local moved = route.tp.transferItem(route.a.side, route.b.side, 64, slot, targetSlot)
     return moved
   end
 

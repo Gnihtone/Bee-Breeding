@@ -2,6 +2,7 @@
 -- Work with the dedicated bee ME interface via setInterfaceConfiguration.
 
 local component = require("component")
+local tp_utils = require("tp_utils")
 
 local DEFAULT_SLOT = 9 -- use the last config slot by convention
 local DEFAULT_WAIT = 20 -- seconds to wait for ME to populate after config
@@ -11,7 +12,6 @@ local function find_stack_by_species(iface, speciesName)
   if not items then return nil end
   for _, entry in ipairs(items) do
     local stack = entry
-    -- entry may be {size=..., name=..., fingerprint=..., label=...}
     if stack.label == speciesName or (stack.displayName and stack.displayName == speciesName) then
       return stack
     end
@@ -25,15 +25,17 @@ local function find_stack_by_species(iface, speciesName)
   return nil
 end
 
-local function new(addr, side, transposer)
+-- nodes: list of {tp, side} pointing at the bee ME interface inventory.
+-- tp_map: addr -> proxy
+local function new(addr, nodes, tp_map)
   if not addr then
     return nil, "bee ME interface address missing"
   end
-  if not side then
-    return nil, "bee ME interface side missing"
+  if not nodes or #nodes == 0 then
+    return nil, "bee ME interface node missing"
   end
-  if not transposer then
-    return nil, "transposer required"
+  if not tp_map then
+    return nil, "transposer map required"
   end
 
   local iface = component.proxy(addr)
@@ -58,22 +60,30 @@ local function new(addr, side, transposer)
     return true
   end
 
-  -- Pull one stack of the configured bee from the interface into target side/slot.
-  function self:pull_bee(targetSide, targetSlot, slot)
+  -- Pull one stack of the configured bee from the interface into target inventory nodes/slot.
+  local function pull_to(targetNodes, targetSlot, slot)
     slot = slot or DEFAULT_SLOT
-    local moved = transposer.transferItem(side, targetSide, 64, slot, targetSlot)
+    local route, err = tp_utils.find_common(tp_map, nodes, targetNodes)
+    if not route then
+      return nil, "no common transposer for bee ME -> target: " .. tostring(err)
+    end
+    local moved = route.tp.transferItem(route.a.side, route.b.side, 64, slot, targetSlot)
     return moved
   end
 
   -- Return bees back into the interface (they will be absorbed into ME).
-  function self:push_bee(fromSide, fromSlot, count, toSlot)
+  local function push_from(sourceNodes, fromSlot, count, toSlot)
     toSlot = toSlot or DEFAULT_SLOT
-    local moved = transposer.transferItem(fromSide, side, count or 64, fromSlot, toSlot)
+    local route, err = tp_utils.find_common(tp_map, sourceNodes, nodes)
+    if not route then
+      return nil, "no common transposer for return to bee ME: " .. tostring(err)
+    end
+    local moved = route.tp.transferItem(route.a.side, route.b.side, count or 64, fromSlot, toSlot)
     return moved
   end
 
-  -- High-level: request a species and pull it to targetSide/targetSlot.
-  function self:request_species(speciesName, targetSide, targetSlot, slot, waitSeconds)
+  -- High-level: request a species and pull it to target inventory nodes/slot.
+  function self:request_species(speciesName, targetNodes, targetSlot, slot, waitSeconds)
     slot = slot or DEFAULT_SLOT
     local stack = self:find_species(speciesName)
     if not stack then
@@ -86,7 +96,7 @@ local function new(addr, side, transposer)
     local deadline = os.time() + (waitSeconds or DEFAULT_WAIT)
     local moved = 0
     repeat
-      moved = self:pull_bee(targetSide, targetSlot, slot) or 0
+      moved = pull_to(targetNodes, targetSlot, slot) or 0
       if moved > 0 then break end
       os.sleep(0.5)
     until os.time() >= deadline
@@ -97,8 +107,8 @@ local function new(addr, side, transposer)
   end
 
   -- Push cleaned bees back into ME (any stack).
-  function self:return_bee(fromSide, fromSlot, count, toSlot)
-    return self:push_bee(fromSide, fromSlot, count, toSlot)
+  function self:return_bee(fromNodes, fromSlot, count, toSlot)
+    return push_from(fromNodes, fromSlot, count, toSlot)
   end
 
   return self
