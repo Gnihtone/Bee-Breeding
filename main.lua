@@ -192,6 +192,7 @@ local function ensure_drone_available(species, allow_skip, want_bulk)
         acclNodes = devices.accl,
         acclimNodes = acclimNodes,
         bee_me = bee_me,
+        reqs_lookup = reqs_lookup,
       })
       local okP, errP = ensure_princess_available(species, allow_skip, false)
       if not okP then
@@ -258,6 +259,7 @@ ensure_princess_available = function(species, allow_skip, want_bulk)
         acclNodes = devices.accl,
         acclimNodes = acclimNodes,
         bee_me = bee_me,
+        reqs_lookup = reqs_lookup,
       })
       local dok, derr = ensure_drone_available(species, allow_skip, true)
       if not dok then
@@ -305,6 +307,7 @@ ensure_princess_available = function(species, allow_skip, want_bulk)
       acclNodes = devices.accl,
       acclimNodes = acclimNodes,
       bee_me = bee_me,
+      reqs_lookup = reqs_lookup,
     })
     bk_recover:start(species, reqs)
     while true do
@@ -336,6 +339,10 @@ local function available_mutations()
   return list
 end
 
+local function reqs_lookup(species)
+  return bee_db.get_requirements(db, species)
+end
+
 local bk = beekeeper.new({
   tp_map = tp_map,
   apiaryNodes = devices.apiary,
@@ -345,6 +352,7 @@ local bk = beekeeper.new({
   acclNodes = devices.accl,
   acclimNodes = acclimNodes,
   bee_me = bee_me,
+  reqs_lookup = reqs_lookup,
 })
 
 io.write("Enter target species (exact displayName), or 'auto' to discover new, empty to exit: ")
@@ -407,12 +415,12 @@ if discovery_mode then
 else
   for i, step in ipairs(plan) do
     log(string.format("Step %d/%d: %s x %s -> %s", i, #plan, step.p1, step.p2, step.child))
-    local ok1, err1 = ensure_princess_available(step.p1, false)
+    local ok1, err1 = ensure_princess_available(step.p1, false, false)
     if not ok1 then fatal(err1) end
     -- Preload drones for both parents to stabilize if princess mutates mid-way.
-    local ok2a, err2a = ensure_drone_available(step.p1, false)
+    local ok2a, err2a = ensure_drone_available(step.p1, false, false)
     if not ok2a then fatal(err2a) end
-    local ok2b, err2b = ensure_drone_available(step.p2, false)
+    local ok2b, err2b = ensure_drone_available(step.p2, false, false)
     if not ok2b then fatal(err2b) end
     bk:start(step.child, step.reqs, {p1 = step.p1, p2 = step.p2})
     while true do
@@ -421,9 +429,32 @@ else
       if state == beekeeper.STATES.ERROR then
         fatal("beekeeper error: " .. tostring(bk.last_error))
       elseif state == beekeeper.STATES.DONE then
-        log("step done: " .. step.child)
+        log("step done: " .. step.child .. " (stabilized and repro in-step)")
         recalc_have()
         clear_buffer(step.child)
+        -- If after clear we still have <64 pure drones of child, run a separate repro cycle with child parents.
+        if have_count(step.child) < 64 then
+          log("pure drones of " .. step.child .. " below 64, running follow-up reproduction")
+          local repro_req = bee_db.get_requirements(db, step.child) or {climate = "NORMAL", humidity = "NORMAL", block = "none", dim = "none"}
+          local okP, errP = ensure_princess_available(step.child, false, true)
+          if not okP then fatal(errP) end
+          local okD, errD = ensure_drone_available(step.child, false, true)
+          if not okD then fatal(errD) end
+          bk:start(step.child, repro_req, {p1 = step.child, p2 = step.child})
+          while true do
+            local st2 = bk:tick()
+            log("repro-followup state: " .. tostring(st2))
+            if st2 == beekeeper.STATES.ERROR then
+              fatal("repro follow-up error: " .. tostring(bk.last_error))
+            elseif st2 == beekeeper.STATES.DONE then
+              log("follow-up reproduction done for " .. step.child)
+              recalc_have()
+              clear_buffer(step.child)
+              break
+            end
+            os.sleep(2)
+          end
+        end
         break
       end
       os.sleep(2)

@@ -179,8 +179,9 @@ local function analyze_buffer(tp_map, bufferNodes, analyzerNodes, targetSpecies,
 end
 
 -- Pick which pair to load:
--- If a princess of child species exists -> use child princess + any drone of child species (pure preferred in REPRO).
--- Otherwise use parent princess (any) + any drone of the other parent species.
+-- Priority for drones:
+--   - If any drone of child species exists, prefer it.
+--   - Otherwise use drones of the opposite parent (relative to princess species).
 local function pick_pair(tp_map, bufferNodes, parents, prefer_pure_drone)
   local node, tp = tp_utils.pick_node(tp_map, bufferNodes)
   if not node or not tp then return nil, "no buffer access" end
@@ -201,15 +202,13 @@ local function pick_pair(tp_map, bufferNodes, parents, prefer_pure_drone)
     return nil, "no princess in buffer"
   end
 
-  local target_drone_species
-  if princess_species == parents.child then
-    target_drone_species = parents.child
-  else
-    -- If princess matches one parent, pick drones of the other parent.
+  local target_drone_species = parents.child
+  local fallback_drone_species = nil
+  if princess_species ~= parents.child then
     if princess_species == parents.p1 then
-      target_drone_species = parents.p2
+      fallback_drone_species = parents.p2
     else
-      target_drone_species = parents.p1
+      fallback_drone_species = parents.p1
     end
   end
 
@@ -219,15 +218,29 @@ local function pick_pair(tp_map, bufferNodes, parents, prefer_pure_drone)
     local stack = tp.getStackInSlot(node.side, slot)
     if is_drone(stack) then
       local pure, sp = analyzer.is_pure(stack)
-      if sp == target_drone_species then
+      local priority = sp == target_drone_species
+      if sp == target_drone_species or (fallback_drone_species and sp == fallback_drone_species) then
         if prefer_pure_drone and pure then
-          drone_slot = slot
-          break
-        elseif not prefer_pure_drone then
-          if pure and not fallback then
-            fallback = slot -- pure but we keep looking for pure, take first if no better
-          elseif not pure and not fallback then
+          if priority then
+            drone_slot = slot
+            break
+          elseif not fallback then
             fallback = slot
+          end
+        elseif not prefer_pure_drone then
+          if priority then
+            if pure then
+              drone_slot = slot
+              break
+            elseif not fallback then
+              fallback = slot
+            end
+          else
+            if pure and not fallback then
+              fallback = slot
+            elseif not fallback then
+              fallback = slot
+            end
           end
         elseif not fallback then
           fallback = slot
@@ -246,7 +259,7 @@ local function pick_pair(tp_map, bufferNodes, parents, prefer_pure_drone)
 end
 
 local function new(ctx)
-  -- ctx: tp_map, apiaryNodes, bufferNodes, analyzerNodes, trashNodes, acclNodes, acclimNodes, bee_me (me_bees instance)
+  -- ctx: tp_map, apiaryNodes, bufferNodes, analyzerNodes, trashNodes, acclNodes, acclimNodes, bee_me (me_bees instance), reqs_lookup(species)->reqs
   local self = {
     state = STATES.IDLE,
     ctx = ctx or {},
@@ -279,7 +292,14 @@ local function new(ctx)
       if not ok then
         return fail("analyze before load failed: " .. tostring(err))
       end
-      ok, err = climate.ensure_princess(self.target.reqs, tp_map, bufNodes, self.ctx.acclNodes, self.ctx.acclimNodes)
+      -- Pick current princess to decide which reqs to use for acclimatization.
+      local info_scan = scan_buffer(tp_map, bufNodes, {target = self.target.species})
+      local princess_species = info_scan.princess_species or self.target.species
+      local reqs = self.target.reqs
+      if self.ctx.reqs_lookup and princess_species and princess_species ~= self.target.species then
+        reqs = self.ctx.reqs_lookup(princess_species) or reqs
+      end
+      ok, err = climate.ensure_princess(reqs, tp_map, bufNodes, self.ctx.acclNodes, self.ctx.acclimNodes)
       if not ok then
         return fail("acclimatization failed: " .. tostring(err))
       end
@@ -327,6 +347,15 @@ local function new(ctx)
       if info.princess_species == self.target.species and info.princess_pure and info.princess_pristine then
         self.state = STATES.REPRO
         return self.state
+      end
+      -- Acclimatize princess to its current species requirements if available.
+      local reqs = self.target.reqs
+      if self.ctx.reqs_lookup and info.princess_species and info.princess_species ~= self.target.species then
+        reqs = self.ctx.reqs_lookup(info.princess_species) or reqs
+      end
+      local ok_accl, err_accl = climate.ensure_princess(reqs, tp_map, bufNodes, self.ctx.acclNodes, self.ctx.acclimNodes)
+      if not ok_accl then
+        return fail("acclimatization failed: " .. tostring(err_accl))
       end
 
       local ps, ds = pick_pair(tp_map, bufNodes, {p1 = self.target.parents.p1, p2 = self.target.parents.p2, child = self.target.species}, false)
