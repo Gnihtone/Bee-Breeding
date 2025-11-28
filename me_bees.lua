@@ -6,7 +6,7 @@ local tp_utils = require("tp_utils")
 
 local DEFAULT_SLOT = 9 -- use the last config slot by convention
 local DEFAULT_WAIT = 20 -- seconds to wait for ME to populate after config
-local DEFAULT_DB_SLOT = 1 -- use first db slot for ghost stacks
+local DEFAULT_DB_SLOT = 0 -- database slot (0-based in OC/GTNH)
 
 local function find_stack_by_species(iface, speciesName)
   local items = iface.getItemsInNetwork()
@@ -66,14 +66,11 @@ local function new(addr, nodes, tp_map, db_addr)
   -- Configure slot to output the desired bee stack.
   function self:set_config(slot, stack)
     slot = slot or DEFAULT_SLOT
-    -- Build a loose filter: matching by name/label/fingerprint to avoid over-constraining.
-    local filter = {
-      name = stack.name,
-      label = stack.label,
-      fingerprint = stack.fingerprint,
-    }
+    -- Minimal filter: prefer label, fallback to name.
+    local filter = {label = stack.label or stack.name}
     -- Store descriptor via ME interface into database slot using filter-based store.
     -- iface.store(filter, dbAddress, startSlot, count)
+    db.clear(DEFAULT_DB_SLOT)
     local okdb, errdb = pcall(iface.store, filter, db_addr, DEFAULT_DB_SLOT, 1)
     if not okdb then
       return nil, "database store failed: " .. tostring(errdb)
