@@ -144,7 +144,7 @@ local function request_parent(species, expect_princess)
     end
     -- Princess: request 1; Drone: request up to 8 to have buffer for changing princess species.
     local count = expect_princess and 1 or 8
-    local moved, reqErr = bee_me:request_species(species, bufferNodes, targetSlot, nil, nil, count)
+    local moved, reqErr = bee_me:request_species(species, bufferNodes, targetSlot, nil, nil, count, expect_princess)
     if not moved or moved == 0 then
       return nil, "failed to request " .. species .. " from bee ME: " .. tostring(reqErr)
     end

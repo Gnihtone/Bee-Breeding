@@ -5,7 +5,7 @@ local component = require("component")
 local tp_utils = require("tp_utils")
 
 local DEFAULT_SLOT = 9
-local DEFAULT_DB_SLOT = 0
+local DEFAULT_DB_SLOT = 1
 
 local function find_stack_by_label(iface, label)
   local items = iface.getItemsInNetwork()

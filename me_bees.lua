@@ -6,21 +6,27 @@ local tp_utils = require("tp_utils")
 
 local DEFAULT_SLOT = 9 -- use the last config slot by convention
 local DEFAULT_WAIT = 20 -- seconds to wait for ME to populate after config
-local DEFAULT_DB_SLOT = 0 -- database slot (0-based in OC/GTNH)
+local DEFAULT_DB_SLOT = 1
 
-local function find_stack_by_species(iface, speciesName)
+local function find_stack_by_species(iface, speciesName, expect_princess)
   local items = iface.getItemsInNetwork()
   if not items then return nil end
   for _, entry in ipairs(items) do
     local stack = entry
-    if stack.label == speciesName or (stack.displayName and stack.displayName == speciesName) then
-      return stack
-    end
-    if stack.individual and stack.individual.displayName == speciesName then
-      return stack
-    end
-    if stack.label and stack.label:find(speciesName, 1, true) then
-      return stack
+    local matches_species = stack.label == speciesName
+      or (stack.displayName and stack.displayName == speciesName)
+      or (stack.individual and stack.individual.displayName == speciesName)
+      or (stack.label and stack.label:find(speciesName, 1, true))
+    if matches_species then
+      if expect_princess then
+        if stack.name == "Forestry:beePrincessGE" then
+          return stack
+        end
+      else
+        if stack.name == "Forestry:beeDroneGE" then
+          return stack
+        end
+      end
     end
   end
   return nil
@@ -59,8 +65,8 @@ local function new(addr, nodes, tp_map, db_addr)
   local self = {}
 
   -- Find a bee stack by species name (displayName) in ME.
-  function self:find_species(speciesName)
-    return find_stack_by_species(iface, speciesName)
+  function self:find_species(speciesName, expect_princess)
+    return find_stack_by_species(iface, speciesName, expect_princess)
   end
 
   -- Configure slot to output the desired bee stack.
@@ -112,9 +118,9 @@ local function new(addr, nodes, tp_map, db_addr)
   end
 
   -- High-level: request a species and pull it to target inventory nodes/slot.
-  function self:request_species(speciesName, targetNodes, targetSlot, slot, waitSeconds, count)
+  function self:request_species(speciesName, targetNodes, targetSlot, slot, waitSeconds, count, expect_princess)
     slot = slot or DEFAULT_SLOT
-    local stack = self:find_species(speciesName)
+    local stack = self:find_species(speciesName, expect_princess)
     if not stack then
       return nil, "species not found in bee ME: " .. tostring(speciesName)
     end
