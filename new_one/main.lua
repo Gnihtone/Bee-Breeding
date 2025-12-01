@@ -32,6 +32,14 @@ local function is_ready(species)
   return counts.princess >= PRINCESS_NEEDED and counts.drone >= DRONES_NEEDED
 end
 
+-- Check if species can be made ready (has princess, can breed more drones).
+local function can_be_ready(species)
+  local counts = stock:get(species)
+  if not counts then return false end
+  -- Has princess = can breed more drones
+  return counts.princess >= PRINCESS_NEEDED
+end
+
 -- Find a donor princess (any species with princess > 1).
 local function find_donor_princess()
   local all = stock:all()
@@ -53,7 +61,7 @@ local function is_base_species(species)
 end
 
 -- Get mutation info for a species.
--- If check_ready is true, returns mutation where both parents are ready.
+-- If check_ready is true, returns mutation where both parents are ready or can be made ready.
 local function get_mutation(species, check_ready)
   if not mutations_data or not mutations_data.byChild then
     return nil
@@ -64,20 +72,26 @@ local function get_mutation(species, check_ready)
   end
   
   if check_ready then
-    -- Find a mutation where both parents are ready
+    -- First, find a mutation where both parents are fully ready
     for _, mut in ipairs(muts) do
       if is_ready(mut.p1) and is_ready(mut.p2) then
         return mut
       end
     end
-    -- No ready mutation found, return first one anyway
+    -- Second, find a mutation where both parents can be made ready
+    for _, mut in ipairs(muts) do
+      if can_be_ready(mut.p1) and can_be_ready(mut.p2) then
+        return mut
+      end
+    end
+    -- No suitable mutation found, return first one anyway
     return muts[1]
   end
   
   return muts[1]
 end
 
--- Check if species can be achieved (any mutation has ready parents).
+-- Check if species can be achieved (any mutation has parents that are ready or can be made ready).
 local function can_achieve(species)
   if not mutations_data or not mutations_data.byChild then
     return false, nil
@@ -87,8 +101,16 @@ local function can_achieve(species)
     return false, nil
   end
   
+  -- First, try to find mutation where both parents are fully ready
   for _, mut in ipairs(muts) do
     if is_ready(mut.p1) and is_ready(mut.p2) then
+      return true, mut
+    end
+  end
+  
+  -- Second, try to find mutation where both parents can be made ready (have princess)
+  for _, mut in ipairs(muts) do
+    if can_be_ready(mut.p1) and can_be_ready(mut.p2) then
       return true, mut
     end
   end
