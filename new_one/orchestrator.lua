@@ -22,16 +22,30 @@ local find_free_slot = utils.find_free_slot
 local orch_mt = {}
 orch_mt.__index = orch_mt
 
--- Get climate/humidity requirements for a species.
+-- Get climate/humidity requirements for a species from NBT.
+-- First tries to find bee in ME and read its NBT.
 local function get_requirements(self, species)
-  if not self.requirements_data or not self.requirements_data.byBee then
-    return "Normal", "Normal"
+  -- Try to find bee in ME and read NBT
+  local items = self.me:list_items()
+  if items then
+    for _, item in ipairs(items) do
+      if item.individual and item.individual.displayName == species then
+        local climate = analyzer.get_climate(item)
+        local humidity = analyzer.get_humidity(item)
+        return climate, humidity
+      end
+    end
   end
-  local req = self.requirements_data.byBee[species]
-  if not req then
-    return "Normal", "Normal"
+  
+  -- Fallback to requirements file if available
+  if self.requirements_data and self.requirements_data.byBee then
+    local req = self.requirements_data.byBee[species]
+    if req then
+      return req.climate or "Normal", req.humidity or "Normal"
+    end
   end
-  return req.climate or "Normal", req.humidity or "Normal"
+  
+  return "Normal", "Normal"
 end
 
 -- Count target bees in buffer.
@@ -273,6 +287,9 @@ function orch_mt:execute_mutation(mutation)
     
     -- Analyze all
     self.analyzer:process_all(self.analyze_timeout)
+    
+    -- Consolidate identical bees into stacks
+    utils.consolidate_buffer(self.buffer_dev, mover)
     
     -- Count target bees
     local counts = count_target_in_buffer(self.buffer_dev, target)

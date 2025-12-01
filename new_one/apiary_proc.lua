@@ -10,7 +10,7 @@ local utils = require("utils")
 -- Forestry Apiary slots
 local PRINCESS_SLOT = 1
 local DRONE_SLOT = 2
-local OUTPUT_SLOTS = {6, 7, 8, 9, 10, 11, 12}
+local OUTPUT_SLOTS = {3, 4, 5, 6, 7, 8, 9}
 
 local device_nodes = utils.device_nodes
 local find_free_slot = utils.find_free_slot
@@ -144,11 +144,8 @@ local function wait_cycle(apiary_node, timeout_sec)
   
   while true do
     local ok_stack, stack = pcall(tp.getStackInSlot, apiary_node.side, PRINCESS_SLOT)
-    if ok_stack and stack then
-      -- Check if it's a princess (not queen) - cycle complete
-      if analyzer.is_princess(stack) then
-        return true
-      end
+    if ok_stack and not stack then
+      return true
     end
     
     if timeout_sec and waited >= timeout_sec then
@@ -215,7 +212,7 @@ function apiary_mt:breed_cycle(timeout_sec)
   
   -- Load drone into apiary slot 2
   local moved_d, derr = mover.move_between_nodes(
-    buffer_node, apiary_node, 64, drone.slot, DRONE_SLOT
+    buffer_node, apiary_node, 1, drone.slot, DRONE_SLOT
   )
   if not moved_d or moved_d == 0 then
     -- Unload princess back
@@ -238,12 +235,6 @@ function apiary_mt:breed_cycle(timeout_sec)
     if dst_slot then
       mover.move_between_nodes(apiary_node, buffer_node, 64, out_slot, dst_slot)
     end
-  end
-  
-  -- Unload new princess from slot 1
-  local _, dst_slot = find_free_slot(self.buffer_dev)
-  if dst_slot then
-    mover.move_between_nodes(apiary_node, buffer_node, 1, PRINCESS_SLOT, dst_slot)
   end
   
   return true

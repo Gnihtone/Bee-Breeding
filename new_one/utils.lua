@@ -49,9 +49,62 @@ local function find_slot_with(dev, label)
   return nil
 end
 
+-- Consolidate identical items in a buffer (combine into stacks).
+-- Uses fingerprint to identify identical items.
+local function consolidate_buffer(dev, mover)
+  local nodes = device_nodes(dev)
+  if #nodes == 0 then return end
+  
+  -- For each node, consolidate items
+  for _, node in ipairs(nodes) do
+    local tp = component.proxy(node.tp)
+    local ok_size, size = pcall(tp.getInventorySize, node.side)
+    if not ok_size or type(size) ~= "number" then
+      goto continue_node
+    end
+    
+    -- Build map of fingerprint -> first slot with space
+    local fingerprint_slots = {}  -- fingerprint -> {slot, size, maxSize}
+    
+    for slot = 1, size do
+      local ok_stack, stack = pcall(tp.getStackInSlot, node.side, slot)
+      if ok_stack and stack and stack.fingerprint then
+        local fp = stack.fingerprint
+        local max_size = stack.maxSize or 64
+        
+        if not fingerprint_slots[fp] then
+          fingerprint_slots[fp] = {slot = slot, size = stack.size or 1, maxSize = max_size}
+        else
+          -- Try to merge this slot into the first one
+          local target = fingerprint_slots[fp]
+          if target.size < target.maxSize then
+            local space = target.maxSize - target.size
+            local to_move = math.min(space, stack.size or 1)
+            
+            if mover and mover.move_between_nodes then
+              local moved = mover.move_between_nodes(node, node, to_move, slot, target.slot)
+              if moved and moved > 0 then
+                target.size = target.size + moved
+              end
+            else
+              -- Fallback: use transposer directly
+              local ok_move, moved = pcall(tp.transferItem, node.side, node.side, to_move, slot, target.slot)
+              if ok_move and moved and moved > 0 then
+                target.size = target.size + moved
+              end
+            end
+          end
+        end
+      end
+    end
+    
+    ::continue_node::
+  end
+end
+
 return {
   device_nodes = device_nodes,
   find_free_slot = find_free_slot,
   find_slot_with = find_slot_with,
+  consolidate_buffer = consolidate_buffer,
 }
-

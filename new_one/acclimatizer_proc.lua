@@ -4,6 +4,7 @@
 local component = require("component")
 local mover = require("mover")
 local utils = require("utils")
+local analyzer = require("analyzer")
 
 local INPUT_SLOT = 1
 local ITEM_SLOT = 6
@@ -228,17 +229,21 @@ local function process_with_reagent(self, accl_node, bee_node, bee_slot, reagent
 end
 
 -- Find first bee in buffer whose requirement is not Normal/Normal.
-local function find_pending(self, requirements_by_bee)
+-- Reads requirements directly from bee NBT.
+local function find_pending(self)
   for _, node in ipairs(device_nodes(self.buffer_dev)) do
     local tp = component.proxy(node.tp)
     local ok_size, size_or_err = pcall(tp.getInventorySize, node.side)
     if ok_size and type(size_or_err) == "number" then
       for slot = 1, size_or_err do
         local ok_stack, stack = pcall(tp.getStackInSlot, node.side, slot)
-        if ok_stack and stack then
-          local name = stack.individual and stack.individual.displayName or stack.label
-          local req = requirements_by_bee[name]
-          if req and ((req.climate and req.climate ~= "Normal") or (req.humidity and req.humidity ~= "Normal")) then
+        if ok_stack and stack and stack.individual then
+          -- Read requirements from NBT
+          local climate = analyzer.get_climate(stack)
+          local humidity = analyzer.get_humidity(stack)
+          
+          if climate ~= "Normal" or humidity ~= "Normal" then
+            local req = {climate = climate, humidity = humidity}
             return node, slot, stack, req
           end
         end
@@ -250,8 +255,9 @@ end
 
 -- Process one bee needing acclimatization; returns true if processed, false if none pending.
 -- timeout_sec: timeout in seconds (not ticks!)
+-- requirements_by_bee is optional (legacy), now reads from NBT directly.
 function accl_mt:step(requirements_by_bee, timeout_sec)
-  local src_node, src_slot, stack, req = find_pending(self, requirements_by_bee)
+  local src_node, src_slot, stack, req = find_pending(self)
   if not src_node then
     return false
   end

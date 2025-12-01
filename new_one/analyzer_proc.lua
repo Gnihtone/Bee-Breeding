@@ -4,91 +4,60 @@
 local component = require("component")
 local analyzer = require("analyzer")
 local mover = require("mover")
+local utils = require("utils")
 
 local analyzer_mt = {}
 analyzer_mt.__index = analyzer_mt
 
-local INPUT_SLOT = 1
-local OUTPUT_SLOT = 8
+local INPUT_SLOT = 3
+local OUTPUT_SLOT = 9
 
-local function device_nodes(dev)
-  if not dev then return {} end
-  if dev.nodes then return dev.nodes end
-  if dev.side and dev.tp then return {dev} end
-  if dev[1] and dev[1].side and dev[1].tp then return dev end
-  return {}
-end
+local device_nodes = utils.device_nodes
 
--- Find first stack in buffer that is not analyzed.
-local function find_unanalyzed(buffer_dev)
-  for _, node in ipairs(device_nodes(buffer_dev)) do
-    local tp = component.proxy(node.tp)
-    local ok_size, size_or_err = pcall(tp.getInventorySize, node.side)
-    if ok_size and type(size_or_err) == "number" then
-      for slot = 1, size_or_err do
-        local ok_stack, stack = pcall(tp.getStackInSlot, node.side, slot)
-        if ok_stack and stack and not (stack.individual and stack.individual.isAnalyzed) then
-          return node, slot, stack
-        end
+-- Find shared nodes between buffer and analyzer.
+local function find_shared_nodes(buffer_dev, analyzer_dev)
+  for _, buf_node in ipairs(device_nodes(buffer_dev)) do
+    for _, an_node in ipairs(device_nodes(analyzer_dev)) do
+      if buf_node.tp == an_node.tp then
+        return buf_node, an_node
       end
     end
   end
-  return nil
-end
-
-local function find_free_slot(buffer_dev)
-  for _, node in ipairs(device_nodes(buffer_dev)) do
-    local tp = component.proxy(node.tp)
-    local ok_size, size_or_err = pcall(tp.getInventorySize, node.side)
-    if ok_size and type(size_or_err) == "number" then
-      for slot = 1, size_or_err do
-        local ok_stack, stack = pcall(tp.getStackInSlot, node.side, slot)
-        if ok_stack and not stack then
-          return node, slot
-        end
-      end
-    end
-  end
-  return nil, nil, "no free slot in buffer"
+  return nil, nil, "no shared transposer between buffer and analyzer"
 end
 
 -- Ensure analyzer IO slots are clear; if not, try to move contents back to buffer.
-local function flush_analyzer_io(analyzer_dev, buffer_dev)
-  local nodes = device_nodes(analyzer_dev)
-  if #nodes == 0 then
-    return nil, "no analyzer nodes"
-  end
-  local an_node = nodes[1]
-  local tp = component.proxy(an_node.tp)
+local function flush_analyzer_io(buffer_node, analyzer_node)
+  local tp = component.proxy(analyzer_node.tp)
 
   for _, slot in ipairs({INPUT_SLOT, OUTPUT_SLOT}) do
-    local ok_stack, stack = pcall(tp.getStackInSlot, an_node.side, slot)
+    local ok_stack, stack = pcall(tp.getStackInSlot, analyzer_node.side, slot)
     if ok_stack and stack then
-      local dst_node, dst_slot = find_free_slot(buffer_dev)
-      if not dst_node then
-        return nil, "no free slot in buffer to flush analyzer"
-      end
-      local moved, merr = mover.move_between_devices(analyzer_dev, buffer_dev, nil, slot, dst_slot)
-      if not moved then
-        return nil, "flush failed: " .. tostring(merr)
+      -- Find free slot in buffer
+      local ok_size, size = pcall(tp.getInventorySize, buffer_node.side)
+      if ok_size and type(size) == "number" then
+        for dst_slot = 1, size do
+          local ok_dst, dst_stack = pcall(tp.getStackInSlot, buffer_node.side, dst_slot)
+          if ok_dst and not dst_stack then
+            local moved = mover.move_between_nodes(analyzer_node, buffer_node, nil, slot, dst_slot)
+            if moved then break end
+          end
+        end
       end
     end
   end
   return true
 end
 
-local function wait_for_output(analyzer_dev, timeout_ticks)
-  local nodes = device_nodes(analyzer_dev)
-  if #nodes == 0 then return nil, "no analyzer nodes" end
-  local an_node = nodes[1]
-  local tp = component.proxy(an_node.tp)
+local function wait_for_output(analyzer_node, timeout_sec)
+  local tp = component.proxy(analyzer_node.tp)
   local waited = 0
   while true do
-    local ok_stack, stack = pcall(tp.getStackInSlot, an_node.side, OUTPUT_SLOT)
+    local ok_stack, stack = pcall(tp.getStackInSlot, analyzer_node.side, OUTPUT_SLOT)
     if ok_stack and stack then
       return stack
     end
-    if timeout_ticks and waited >= timeout_ticks then
+    if timeout_sec and waited >= timeout_sec then
       return nil, "analyzer timeout"
     end
     os.sleep(0.5)
@@ -97,38 +66,66 @@ local function wait_for_output(analyzer_dev, timeout_ticks)
 end
 
 -- Process one unanalyzed bee; returns true if one processed, false if none found.
-function analyzer_mt:step(timeout_ticks)
-  -- Ensure analyzer IO clear.
-  local ok_flush, ferr = flush_analyzer_io(self.analyzer_dev, self.buffer_dev)
-  if not ok_flush then
-    error(ferr, 2)
+function analyzer_mt:step(timeout_sec)
+  -- Find shared transposer nodes
+  local buffer_node, analyzer_node, shared_err = find_shared_nodes(self.buffer_dev, self.analyzer_dev)
+  if not buffer_node then
+    error(shared_err or "no shared transposer", 2)
+  end
+  
+  -- Debug: verify nodes are valid
+  if not buffer_node.tp or not buffer_node.side then
+    error("invalid buffer_node: tp=" .. tostring(buffer_node.tp) .. " side=" .. tostring(buffer_node.side), 2)
+  end
+  if not analyzer_node.tp or not analyzer_node.side then
+    error("invalid analyzer_node: tp=" .. tostring(analyzer_node.tp) .. " side=" .. tostring(analyzer_node.side), 2)
   end
 
-  local src_node, src_slot = find_unanalyzed(self.buffer_dev)
-  if not src_node then
+  -- Ensure analyzer IO clear.
+  flush_analyzer_io(buffer_node, analyzer_node)
+
+  -- Find unanalyzed bee in buffer
+  local tp = component.proxy(buffer_node.tp)
+  local ok_size, size = pcall(tp.getInventorySize, buffer_node.side)
+  if not ok_size or type(size) ~= "number" then
     return false
   end
 
-  -- Move to analyzer input.
-  local moved_in, ierr = mover.move_between_devices(self.buffer_dev, self.analyzer_dev, nil, src_slot, INPUT_SLOT)
-  if not moved_in then
+  local src_slot = nil
+  for slot = 1, size do
+    local ok_stack, stack = pcall(tp.getStackInSlot, buffer_node.side, slot)
+    if ok_stack and stack and stack.individual and not stack.individual.isAnalyzed then
+      src_slot = slot
+      break
+    end
+  end
+
+  if not src_slot then
+    return false  -- No unanalyzed bees
+  end
+
+  -- Move entire stack to analyzer input
+  local moved_in, ierr = mover.move_between_nodes(buffer_node, analyzer_node, 64, src_slot, INPUT_SLOT)
+  if not moved_in or moved_in == 0 then
     error("move to analyzer failed: " .. tostring(ierr), 2)
   end
 
-  -- Wait for output in slot 8.
-  local analyzed_stack, werr = wait_for_output(self.analyzer_dev, timeout_ticks)
+  -- Wait for output
+  local analyzed_stack, werr = wait_for_output(analyzer_node, timeout_sec)
   if not analyzed_stack then
     error(werr, 2)
   end
 
-  -- Move analyzed stack back to buffer.
-  local dst_node, dst_slot, free_err = find_free_slot(self.buffer_dev)
-  if not dst_node then
-    error(free_err, 2)
-  end
-  local moved_out, oerr = mover.move_between_devices(self.analyzer_dev, self.buffer_dev, nil, OUTPUT_SLOT, dst_slot)
-  if not moved_out then
-    error("move from analyzer failed: " .. tostring(oerr), 2)
+  -- Find free slot in buffer and move analyzed bee back
+  for dst_slot = 1, size do
+    local ok_dst, dst_stack = pcall(tp.getStackInSlot, buffer_node.side, dst_slot)
+    if ok_dst and not dst_stack then
+      local moved_out, oerr = mover.move_between_nodes(analyzer_node, buffer_node, nil, OUTPUT_SLOT, dst_slot)
+      if not moved_out then
+        error("move from analyzer failed: " .. tostring(oerr), 2)
+      end
+      break
+    end
   end
 
   return true
