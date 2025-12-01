@@ -53,7 +53,8 @@ local function is_base_species(species)
 end
 
 -- Get mutation info for a species.
-local function get_mutation(species)
+-- If check_ready is true, returns mutation where both parents are ready.
+local function get_mutation(species, check_ready)
   if not mutations_data or not mutations_data.byChild then
     return nil
   end
@@ -61,7 +62,38 @@ local function get_mutation(species)
   if not muts or #muts == 0 then
     return nil
   end
-  return muts[1]  -- Take first available mutation
+  
+  if check_ready then
+    -- Find a mutation where both parents are ready
+    for _, mut in ipairs(muts) do
+      if is_ready(mut.p1) and is_ready(mut.p2) then
+        return mut
+      end
+    end
+    -- No ready mutation found, return first one anyway
+    return muts[1]
+  end
+  
+  return muts[1]
+end
+
+-- Check if species can be achieved (any mutation has ready parents).
+local function can_achieve(species)
+  if not mutations_data or not mutations_data.byChild then
+    return false, nil
+  end
+  local muts = mutations_data.byChild[species]
+  if not muts or #muts == 0 then
+    return false, nil
+  end
+  
+  for _, mut in ipairs(muts) do
+    if is_ready(mut.p1) and is_ready(mut.p2) then
+      return true, mut
+    end
+  end
+  
+  return false, nil
 end
 
 -- Ensure a species is ready (recursive).
@@ -115,7 +147,8 @@ local function ensure_species(species, depth)
     error("Base species " .. species .. " not available and cannot be mutated")
   end
   
-  local mutation = get_mutation(species)
+  -- Try to find a mutation with ready parents first
+  local mutation = get_mutation(species, true)
   if not mutation then
     error("No mutation found for " .. species)
   end
@@ -142,32 +175,31 @@ local function get_achievable_species()
   local achievable = {}
   
   if not mutations_data or not mutations_data.list then
-    return achievable
+    return {}
   end
   
   stock:rescan()
   
+  -- Collect all unique child species
+  local all_children = {}
   for _, mut in ipairs(mutations_data.list) do
-    -- Check if child is not ready
-    if not is_ready(mut.child) then
-      -- Check if both parents are ready
-      if is_ready(mut.p1) and is_ready(mut.p2) then
-        -- Can breed this species!
-        if not achievable[mut.child] then
-          achievable[mut.child] = mut
-        end
+    all_children[mut.child] = true
+  end
+  
+  -- Check each child species
+  for species in pairs(all_children) do
+    if not is_ready(species) then
+      local achievable_now, mut = can_achieve(species)
+      if achievable_now and mut then
+        table.insert(achievable, {species = species, mutation = mut})
       end
     end
   end
   
-  -- Convert to sorted list
-  local list = {}
-  for species, mut in pairs(achievable) do
-    table.insert(list, {species = species, mutation = mut})
-  end
-  table.sort(list, function(a, b) return a.species < b.species end)
+  -- Sort for consistent order
+  table.sort(achievable, function(a, b) return a.species < b.species end)
   
-  return list
+  return achievable
 end
 
 -- Show help message.
