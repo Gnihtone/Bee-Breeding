@@ -14,17 +14,15 @@ end
 
 local function is_pure(stack)
   if not stack or not stack.individual then
-    return false, nil
+    return false
   end
   local active = stack.individual.active
   local inactive = stack.individual.inactive
   if not active or not inactive then
-    return false, nil
+    return false
   end
   local pure = active.species.uid == inactive.species.uid
-  -- Return displayName if available, otherwise species id.
-  local name = stack.individual.displayName or active.species
-  return pure, name
+  return pure
 end
 
 local function is_princess(stack)
