@@ -113,15 +113,38 @@ local function sort_buffer(self, target_species, parent1, parent2)
   end
 end
 
--- Request bees from ME to buffer.
-local function request_bees_from_me(self, species, count, is_princess)
-  local filter = {label = species}
-  if is_princess then
-    filter.name = "Forestry:beePrincessGE"
-  else
-    filter.name = "Forestry:beeDroneGE"
+-- Find bee in ME network by species and type.
+local function find_bee_in_me(self, species, is_princess)
+  -- Get all items and filter manually for more control
+  local items, err = self.me:list_items()
+  if not items then
+    return nil, err
   end
   
+  for _, item in ipairs(items) do
+    -- Check if it's a bee with matching species
+    if item.individual and item.individual.displayName == species then
+      -- Check princess vs drone by item name
+      local is_item_princess = item.name and item.name:find("Princess")
+      if is_princess and is_item_princess then
+        return item
+      elseif not is_princess and not is_item_princess then
+        return item
+      end
+    end
+  end
+  
+  return nil, "bee not found: " .. species .. (is_princess and " Princess" or " Drone")
+end
+
+-- Request bees from ME to buffer.
+local function request_bees_from_me(self, species, count, is_princess)
+  -- First find the bee to get its exact filter
+  local filter, find_err = find_bee_in_me(self, species, is_princess)
+  if not filter then
+    return nil, find_err
+  end
+
   -- Configure ME interface to output the bees
   -- Use slots 2 and 3 (slot 1 is reserved for role marker)
   local slot_idx = is_princess and 2 or 3

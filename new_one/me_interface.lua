@@ -95,20 +95,35 @@ function iface_mt:configure_output_slot(stack, opts)
     db_slot = slot
   end
 
-  local ok_store, store_err = pcall(self.iface.store, build_filter(stack), self.db_addr, db_slot, 1)
-  if not ok_store or store_err == false then
-    return nil, "store to database failed"
-  end
-
-  local target_slot = opts.slot_idx or self:_iface_slot_count()
-  local ok_cfg, cfg_err = pcall(self.iface.setInterfaceConfiguration, target_slot, self.db_addr, db_slot, opts.size or stack.size or 64)
-  if not ok_cfg or cfg_err == false then
-    return nil, "setInterfaceConfiguration failed"
-  end
-
-  -- Clear any previous ghost to avoid leaking db slots; if we reused a slot, wiping is harmless.
+  -- Clear the database slot first
   pcall(self.db.clear, db_slot)
+
+  -- Store item from ME network into database
+  local filter = build_filter(stack)
+  local ok_store, store_result = pcall(self.iface.store, filter, self.db_addr, db_slot, 1)
+  if not ok_store then
+    return nil, "store call failed: " .. tostring(store_result)
+  end
+
+  -- Verify something was stored in database
+  local ok_check, db_entry = pcall(self.db.get, db_slot)
+  if not ok_check or not db_entry or not db_entry.label then
+    return nil, "store found no matching item for filter: " .. (filter.label or filter.name or "?")
+  end
+
+  -- Configure interface slot to output from database
+  local target_slot = opts.slot_idx or self:_iface_slot_count()
+  local size = opts.size or stack.size or 64
+  local ok_cfg, cfg_result = pcall(self.iface.setInterfaceConfiguration, target_slot, self.db_addr, db_slot, size)
+  if not ok_cfg then
+    return nil, "setInterfaceConfiguration failed: " .. tostring(cfg_result)
+  end
+
+  -- Wait for interface to pull items from ME
   os.sleep(0.5)
+
+  -- Clear database slot after config is set (config copies the item reference)
+  pcall(self.db.clear, db_slot)
 
   return true
 end
