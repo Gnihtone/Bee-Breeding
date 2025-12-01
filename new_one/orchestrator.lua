@@ -123,7 +123,8 @@ local function request_bees_from_me(self, species, count, is_princess)
   end
   
   -- Configure ME interface to output the bees
-  local slot_idx = is_princess and 1 or 2
+  -- Use slots 2 and 3 (slot 1 is reserved for role marker)
+  local slot_idx = is_princess and 2 or 3
   local ok, err = self.me:configure_output_slot(filter, {slot_idx = slot_idx, size = count})
   if not ok then
     return nil, "failed to configure ME: " .. tostring(err)
