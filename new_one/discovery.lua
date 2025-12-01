@@ -61,7 +61,7 @@ local function discover()
       -- Device detection by inventory name.
       if lowerName:find("tile.for.apiculture") or lowerName:find("alveary") then
         table.insert(devices.apiary, node)
-      elseif lowerName:find("tile.labMachine") then
+      elseif lowerName:find("tile.labmachine") then
         table.insert(devices.accl, node)
       elseif lowerName:find("tile.for.core") then
         table.insert(devices.analyzer, node)

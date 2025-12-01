@@ -1,7 +1,8 @@
 -- main.lua
 -- Main entry point for the bee breeder.
 -- Usage:
---   main              → breed all missing species
+--   main              → show help
+--   main all          → breed all achievable species from current stock
 --   main Industrious  → breed specific species
 
 local discovery = require("discovery")
@@ -136,34 +137,57 @@ local function ensure_species(species, depth)
   return true
 end
 
--- Get all species that are not ready.
-local function get_missing_species()
-  local missing = {}
+-- Get species that can be bred from currently ready species (one mutation away).
+local function get_achievable_species()
+  local achievable = {}
   
   if not mutations_data or not mutations_data.list then
-    return missing
+    return achievable
   end
   
-  -- Collect all known species
-  local all_species = {}
-  for _, mut in ipairs(mutations_data.list) do
-    all_species[mut.child] = true
-    all_species[mut.p1] = true
-    all_species[mut.p2] = true
-  end
-  
-  -- Check which are missing
   stock:rescan()
-  for species in pairs(all_species) do
-    if not is_ready(species) then
-      table.insert(missing, species)
+  
+  for _, mut in ipairs(mutations_data.list) do
+    -- Check if child is not ready
+    if not is_ready(mut.child) then
+      -- Check if both parents are ready
+      if is_ready(mut.p1) and is_ready(mut.p2) then
+        -- Can breed this species!
+        if not achievable[mut.child] then
+          achievable[mut.child] = mut
+        end
+      end
     end
   end
   
-  -- Sort for consistent order
-  table.sort(missing)
+  -- Convert to sorted list
+  local list = {}
+  for species, mut in pairs(achievable) do
+    table.insert(list, {species = species, mutation = mut})
+  end
+  table.sort(list, function(a, b) return a.species < b.species end)
   
-  return missing
+  return list
+end
+
+-- Show help message.
+local function show_help()
+  print("Bee Breeder - Automatic bee breeding for GTNH")
+  print("")
+  print("Usage:")
+  print("  main <species>  - breed a specific species (e.g., main Industrious)")
+  print("  main all        - breed all achievable species from current stock")
+  print("")
+  print("Before first run:")
+  print("  export_bee_data - export mutation data from apiary")
+  print("")
+  print("Required device roles (marker in slot 1):")
+  print("  ROLE:BUFFER     - main breeding buffer")
+  print("  ROLE:TRASH      - buffer for hybrids")
+  print("  ROLE:ACCL-MATS  - acclimatizer reagents (Ice, Blaze Rod, etc.)")
+  print("  ROLE:FOUNDATION - output buffer for foundation blocks")
+  print("  ROLE:ME-BEES    - ME interface for bees")
+  print("  ROLE:ME-BLOCKS  - ME interface for blocks")
 end
 
 -- Initialize everything.
@@ -261,47 +285,85 @@ local function init()
   print("=== Initialization Complete ===\n")
 end
 
+-- Breed all achievable species in waves.
+local function breed_all()
+  local total_bred = 0
+  local wave = 0
+  
+  while true do
+    wave = wave + 1
+    print(string.format("\n=== Wave %d: Finding achievable species ===", wave))
+    
+    local achievable = get_achievable_species()
+    
+    if #achievable == 0 then
+      print("No more species can be bred from current stock.")
+      break
+    end
+    
+    print(string.format("Found %d species to breed:", #achievable))
+    for i, entry in ipairs(achievable) do
+      local mut = entry.mutation
+      print(string.format("  %d. %s (%s + %s)", i, entry.species, mut.p1, mut.p2))
+    end
+    
+    -- Breed each achievable species
+    for i, entry in ipairs(achievable) do
+      print(string.format("\n--- [%d/%d] Breeding %s ---", i, #achievable, entry.species))
+      
+      local ok, err = pcall(ensure_species, entry.species, 0)
+      if not ok then
+        print("ERROR: " .. tostring(err))
+        print("Skipping...\n")
+      else
+        print(entry.species .. " complete!")
+        total_bred = total_bred + 1
+      end
+      
+      -- Rescan stock after each species
+      stock:rescan()
+    end
+  end
+  
+  print(string.format("\n=== All Done! Bred %d species total ===", total_bred))
+end
+
 -- Main entry point.
 local function main(args)
+  -- No arguments → show help
+  if #args == 0 then
+    show_help()
+    return
+  end
+  
+  local command = args[1]
+  
+  -- Help command
+  if command == "help" or command == "-h" or command == "--help" then
+    show_help()
+    return
+  end
+  
+  -- Initialize
   init()
   
-  local targets = {}
-  
-  if #args == 0 then
-    -- No arguments → breed all missing species
-    print("Finding missing species...")
-    targets = get_missing_species()
-    if #targets == 0 then
-      print("All species are ready!")
-      return
-    end
-    print("Missing species: " .. #targets)
-    for i, species in ipairs(targets) do
-      print("  " .. i .. ". " .. species)
-    end
-    print()
-  else
-    -- Specific species requested
-    targets = {args[1]}
+  -- "all" command → breed all achievable species
+  if command == "all" then
+    breed_all()
+    return
   end
   
-  -- Process each target
-  for i, target in ipairs(targets) do
-    print(string.format("\n=== [%d/%d] Breeding %s ===", i, #targets, target))
-    
-    local ok, err = pcall(ensure_species, target, 0)
-    if not ok then
-      print("ERROR: " .. tostring(err))
-      print("Continuing with next species...\n")
-    else
-      print(target .. " complete!\n")
-    end
-    
-    -- Rescan stock after each target
-    stock:rescan()
+  -- Specific species
+  local target = command
+  print(string.format("\n=== Breeding %s ===", target))
+  
+  local ok, err = pcall(ensure_species, target, 0)
+  if not ok then
+    print("ERROR: " .. tostring(err))
+    return
   end
   
-  print("\n=== All Done! ===")
+  print(string.format("\n=== %s complete! ===", target))
 end
 
 -- Run
