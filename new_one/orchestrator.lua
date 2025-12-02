@@ -305,8 +305,13 @@ function orch_mt:execute_mutation(mutation)
       break
     end
     
+    -- Acclimatize princess for next cycle (if requirements exist)
+    if next(requirements_by_bee) then
+      self.acclimatizer:process_all(requirements_by_bee)
+    end
+    
     -- Free memory periodically
-    collectgarbage("collect")
+    os.sleep(0)  -- yield to allow garbage collection
   end
   
   -- Sort buffer: pure → ME, hybrids → trash

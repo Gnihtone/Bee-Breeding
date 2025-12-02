@@ -190,9 +190,9 @@ local function process_princess(self, buffer_node, princess_slot, climate, humid
   end
 end
 
--- Find princess needing acclimatization in buffer.
--- Returns {slot, climate, humidity, node} or nil.
-local function find_princess_to_acclimatize(buffer_dev)
+-- Find any princess in buffer.
+-- Returns {slot, node} or nil.
+local function find_princess(buffer_dev)
   local nodes = device_nodes(buffer_dev)
   if #nodes == 0 then return nil end
   
@@ -206,40 +206,46 @@ local function find_princess_to_acclimatize(buffer_dev)
   for stack in stacks do
     slot = slot + 1
     if stack and stack.individual and analyzer.is_princess(stack) then
-      local climate = analyzer.get_climate(stack)
-      local humidity = analyzer.get_humidity(stack)
-      
-      if string.upper(climate) ~= "NORMAL" or string.upper(humidity) ~= "NORMAL" then
-        return {
-          slot = slot,
-          climate = climate,
-          humidity = humidity,
-          node = node,
-        }
-      end
+      return {
+        slot = slot,
+        node = node,
+      }
     end
   end
   
   return nil
 end
 
--- Process all pending bees (just the princess).
+-- Process princess with given requirements.
+-- requirements_by_bee: {[species] = {climate = "Hot", humidity = "Arid"}, ...}
 -- timeout_sec: timeout in seconds
 function accl_mt:process_all(requirements_by_bee, timeout_sec)
-  local princess = find_princess_to_acclimatize(self.buffer_dev)
-  
-  if not princess then
-    return true  -- Nothing to process
+  -- Extract climate and humidity from any entry (they're all the same)
+  local climate, humidity
+  for _, req in pairs(requirements_by_bee or {}) do
+    climate = req.climate
+    humidity = req.humidity
+    break
   end
   
-  print("    Acclimatizing princess: climate=" .. princess.climate .. ", humidity=" .. princess.humidity)
+  -- If no requirements, nothing to do
+  if not climate and not humidity then
+    return true
+  end
+  
+  local princess = find_princess(self.buffer_dev)
+  if not princess then
+    return true  -- No princess to process
+  end
+  
+  print("    Acclimatizing princess: climate=" .. tostring(climate) .. ", humidity=" .. tostring(humidity))
   
   local ok, err = process_princess(
     self, 
     princess.node, 
     princess.slot, 
-    princess.climate, 
-    princess.humidity, 
+    climate, 
+    humidity, 
     timeout_sec
   )
   
