@@ -143,20 +143,27 @@ local function get_humidity_tolerance(stack)
   return "None"
 end
 
--- Check if tolerance string contains "5" (fully acclimatized).
--- Examples: "Both 5", "Up 5", "Down 5"
-local function has_max_tolerance(tolerance_str)
-  if not tolerance_str then return false end
-  return string.find(tolerance_str, "5") ~= nil
+-- Extract tolerance level number from string.
+-- Examples: "Both 5" -> 5, "Up 3" -> 3, "Down 2" -> 2, "None" -> 0
+local function get_tolerance_level(tolerance_str)
+  if not tolerance_str or tolerance_str == "None" then
+    return 0
+  end
+  -- Find any digit in the string
+  local num = string.match(tolerance_str, "(%d+)")
+  return tonumber(num) or 0
 end
 
--- Check if bee has been fully acclimatized (has 5 in either tolerance).
+-- Check if bee has been sufficiently acclimatized (both tolerances >= 3).
 local function is_acclimatized(stack)
   local temp_tol = get_temperature_tolerance(stack)
   local hum_tol = get_humidity_tolerance(stack)
   
-  -- If either tolerance has 5, bee is fully acclimatized
-  return has_max_tolerance(temp_tol) or has_max_tolerance(hum_tol)
+  local temp_level = get_tolerance_level(temp_tol)
+  local hum_level = get_tolerance_level(hum_tol)
+  
+  -- Both tolerances must be at least 3
+  return temp_level >= 3 and hum_level >= 3 and (temp_level == 5 or hum_level == 5)
 end
 
 return {

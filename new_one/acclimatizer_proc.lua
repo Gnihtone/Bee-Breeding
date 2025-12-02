@@ -217,7 +217,7 @@ local function find_princess(buffer_dev)
 end
 
 -- Find all drones in buffer that need acclimatization.
--- Returns list of {slot, node} or empty list.
+-- Returns list of {slot, node, count} or empty list.
 local function find_drones_needing_acclimatization(buffer_dev)
   local nodes = device_nodes(buffer_dev)
   if #nodes == 0 then return {} end
@@ -238,6 +238,7 @@ local function find_drones_needing_acclimatization(buffer_dev)
         table.insert(drones, {
           slot = slot,
           node = node,
+          count = stack.size or 1,  -- Number of drones in this slot
         })
       end
     end
@@ -291,18 +292,26 @@ function accl_mt:process_all(requirements, timeout_sec)
   -- Acclimatize all drones that need it (needed for self-breeding or breeding new mutated pair)
   local drones = find_drones_needing_acclimatization(self.buffer_dev)
   if #drones > 0 then
-    print("    Acclimatizing " .. #drones .. " drone(s)")
-    for i, drone in ipairs(drones) do
-      local ok2, err2 = process_princess(  -- reuse same function, works for drones too
-        self, 
-        drone.node, 
-        drone.slot, 
-        climate, 
-        humidity, 
-        timeout_sec
-      )
-      if not ok2 then
-        error("drone acclimatization failed: " .. tostring(err2), 2)
+    local total_drones = 0
+    for _, d in ipairs(drones) do
+      total_drones = total_drones + d.count
+    end
+    print("    Acclimatizing " .. total_drones .. " drone(s) in " .. #drones .. " slot(s)")
+    
+    for _, drone in ipairs(drones) do
+      -- Process each drone in the stack one by one
+      for j = 1, drone.count do
+        local ok2, err2 = process_princess(  -- reuse same function, works for drones too
+          self, 
+          drone.node, 
+          drone.slot, 
+          climate, 
+          humidity, 
+          timeout_sec
+        )
+        if not ok2 then
+          error("drone acclimatization failed: " .. tostring(err2), 2)
+        end
       end
     end
   end
