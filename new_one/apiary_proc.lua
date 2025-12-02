@@ -38,47 +38,45 @@ local function scan_buffer(buffer_node, valid_species)
     drones = {},     -- species -> list of {slot, stack, is_pure}
   }
   
+  -- Build valid species lookup set
+  local valid_set = {}
   for _, species in ipairs(valid_species) do
+    valid_set[species] = true
     result.drones[species] = {}
   end
   
   local tp = component.proxy(buffer_node.tp)
-  local ok_size, size = pcall(tp.getInventorySize, buffer_node.side)
-  if not ok_size or type(size) ~= "number" then
+  
+  -- Get all stacks in one call
+  local ok, stacks = pcall(tp.getAllStacks, buffer_node.side)
+  if not ok or not stacks then
     return result
   end
   
-  for slot = 1, size do
-    local ok_stack, stack = pcall(tp.getStackInSlot, buffer_node.side, slot)
-    if ok_stack and stack and stack.individual then
+  local slot = 0
+  for stack in stacks do
+    slot = slot + 1
+    if stack and stack.individual then
       local species = analyzer.get_species(stack)
-      if species then
-        -- Check if species is one of valid_species
-        local valid = false
-        for _, s in ipairs(valid_species) do
-          if s == species then valid = true; break end
-        end
+      if species and valid_set[species] then
+        local is_pure = analyzer.is_pure(stack)
         
-        if valid then
-          local is_pure = analyzer.is_pure(stack)
-          
-          if analyzer.is_princess(stack) then
-            if not result.princess then
-              result.princess = {
-                slot = slot,
-                stack = stack,
-                species = species,
-                is_pure = is_pure,
-              }
-            end
-          else
-            -- Drone
-            table.insert(result.drones[species], {
+        if analyzer.is_princess(stack) then
+          if not result.princess then
+            result.princess = {
               slot = slot,
               stack = stack,
+              species = species,
               is_pure = is_pure,
-            })
+            }
           end
+        else
+          -- Drone
+          table.insert(result.drones[species], {
+            slot = slot,
+            stack = stack,
+            is_pure = is_pure,
+          })
         end
       end
     end

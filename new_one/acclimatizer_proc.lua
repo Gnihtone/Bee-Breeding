@@ -228,49 +228,52 @@ local function process_with_reagent(self, accl_node, bee_node, bee_slot, reagent
   return out_stack, accl_for_bee
 end
 
--- Find first bee in buffer whose requirement is not Normal/Normal.
--- Reads requirements directly from bee NBT.
-local function find_pending(self)
-  for _, node in ipairs(device_nodes(self.buffer_dev)) do
-    local tp = component.proxy(node.tp)
-    local ok_size, size_or_err = pcall(tp.getInventorySize, node.side)
-    if ok_size and type(size_or_err) == "number" then
-      for slot = 1, size_or_err do
-        local ok_stack, stack = pcall(tp.getStackInSlot, node.side, slot)
-        if ok_stack and stack and stack.individual then
-          -- Read requirements from NBT
-          local climate = analyzer.get_climate(stack)
-          local humidity = analyzer.get_humidity(stack)
-          
-          if climate ~= "Normal" or humidity ~= "Normal" then
-            local req = {climate = climate, humidity = humidity}
-            return node, slot, stack, req
-          end
-        end
+-- Scan buffer for all bees needing acclimatization (non-Normal climate/humidity).
+-- Returns list of {slot, climate, humidity}
+local function scan_pending(buffer_dev)
+  local nodes = device_nodes(buffer_dev)
+  if #nodes == 0 then return {} end
+  
+  local node = nodes[1]
+  local tp = component.proxy(node.tp)
+  
+  local ok, stacks = pcall(tp.getAllStacks, node.side)
+  if not ok or not stacks then return {} end
+  
+  local pending = {}
+  local slot = 0
+  for stack in stacks do
+    slot = slot + 1
+    if stack and stack.individual then
+      local climate = analyzer.get_climate(stack)
+      local humidity = analyzer.get_humidity(stack)
+      
+      if climate ~= "Normal" or humidity ~= "Normal" then
+        table.insert(pending, {
+          slot = slot,
+          climate = climate,
+          humidity = humidity,
+        })
       end
     end
   end
-  return nil
+  
+  return pending, node
 end
 
--- Process one bee needing acclimatization; returns true if processed, false if none pending.
--- timeout_sec: timeout in seconds (not ticks!)
--- requirements_by_bee is optional (legacy), now reads from NBT directly.
-function accl_mt:step(requirements_by_bee, timeout_sec)
-  local src_node, src_slot, stack, req = find_pending(self)
-  if not src_node then
-    return false
-  end
-
+-- Process a single bee through acclimatization.
+-- src_node, src_slot: where the bee is
+-- req: {climate, humidity}
+-- timeout_sec: timeout per reagent
+local function process_one_bee(self, src_node, src_slot, req, timeout_sec)
   -- Get list of reagents needed (may be 1 or 2)
   local reagents = get_needed_reagents(req.climate, req.humidity)
   if #reagents == 0 then
-    return false
+    return true  -- Nothing to do
   end
 
   local current_node = src_node
   local current_slot = src_slot
-  local last_accl_node = nil
   
   -- Process through each reagent
   for i, reagent in ipairs(reagents) do
@@ -285,8 +288,6 @@ function accl_mt:step(requirements_by_bee, timeout_sec)
     if not out_stack then
       error(used_accl_node, 2) -- used_accl_node contains error message
     end
-    
-    last_accl_node = used_accl_node
     
     -- If more reagents to process, move to buffer temporarily
     if i < #reagents then
@@ -307,23 +308,23 @@ function accl_mt:step(requirements_by_bee, timeout_sec)
       
       current_node = tmp_node
       current_slot = tmp_slot
+    else
+      -- Last reagent - move final result back to buffer
+      local dst_node, dst_slot, ferr = find_free_slot(self.buffer_dev)
+      if not dst_node then
+        error(ferr or "no free slot in buffer", 2)
+      end
+      
+      local accl_for_dst = find_accl_node_for(self.accl_dev, dst_node)
+      if not accl_for_dst then
+        error("no shared transposer for final move", 2)
+      end
+      
+      local moved_out, oerr = mover.move_between_nodes(accl_for_dst, dst_node, nil, OUTPUT_SLOT, dst_slot)
+      if not moved_out then
+        error("move from acclimatizer failed: " .. tostring(oerr), 2)
+      end
     end
-  end
-  
-  -- Move final result back to buffer
-  local dst_node, dst_slot, ferr = find_free_slot(self.buffer_dev)
-  if not dst_node then
-    error(ferr or "no free slot in buffer", 2)
-  end
-  
-  local accl_for_dst = find_accl_node_for(self.accl_dev, dst_node)
-  if not accl_for_dst then
-    error("no shared transposer for final move", 2)
-  end
-  
-  local moved_out, oerr = mover.move_between_nodes(accl_for_dst, dst_node, nil, OUTPUT_SLOT, dst_slot)
-  if not moved_out then
-    error("move from acclimatizer failed: " .. tostring(oerr), 2)
   end
   
   return true
@@ -331,13 +332,24 @@ end
 
 -- Process all pending bees.
 -- timeout_sec: timeout per bee in seconds
+-- requirements_by_bee is ignored (legacy), reads from NBT directly.
 function accl_mt:process_all(requirements_by_bee, timeout_sec)
-  while true do
-    local processed = self:step(requirements_by_bee, timeout_sec)
-    if not processed then
-      return true
-    end
+  -- Scan buffer once for all pending bees
+  local pending, buffer_node = scan_pending(self.buffer_dev)
+  
+  if #pending == 0 then
+    return true  -- Nothing to process
   end
+  
+  -- Process each pending bee
+  for _, bee in ipairs(pending) do
+    process_one_bee(self, buffer_node, bee.slot, {
+      climate = bee.climate,
+      humidity = bee.humidity,
+    }, timeout_sec)
+  end
+  
+  return true
 end
 
 local function new(buffer_dev, accl_dev, mats_dev)

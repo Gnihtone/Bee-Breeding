@@ -53,22 +53,22 @@ end
 local function count_target_in_buffer(buffer_dev, target_species)
   local result = {drones = 0, has_princess = false}
   
-  for _, node in ipairs(device_nodes(buffer_dev)) do
-    local tp = component.proxy(node.tp)
-    local ok_size, size = pcall(tp.getInventorySize, node.side)
-    if ok_size and type(size) == "number" then
-      for slot = 1, size do
-        local ok_stack, stack = pcall(tp.getStackInSlot, node.side, slot)
-        if ok_stack and stack and stack.individual then
-          local species = analyzer.get_species(stack)
-          local is_pure = analyzer.is_pure(stack)
-          
-          if species == target_species and is_pure then
-            if analyzer.is_princess(stack) then
-              result.has_princess = true
-            else
-              result.drones = result.drones + (stack.size or 1)
-            end
+  -- Use only first node - all nodes point to the same physical inventory
+  local nodes = device_nodes(buffer_dev)
+  local node = nodes[1]
+  if not node then return result end
+  
+  local tp = component.proxy(node.tp)
+  local ok, stacks = pcall(tp.getAllStacks, node.side)
+  if ok and stacks then
+    for stack in stacks do
+      if stack and stack.individual then
+        local species = analyzer.get_species(stack)
+        if species == target_species and analyzer.is_pure(stack) then
+          if analyzer.is_princess(stack) then
+            result.has_princess = true
+          else
+            result.drones = result.drones + (stack.size or 1)
           end
         end
       end
@@ -181,6 +181,9 @@ local function request_bees_from_me(self, species, count, is_princess)
     return nil, "failed to move bees from ME to buffer"
   end
   
+  -- Clear ME interface slot configuration after successful move
+  self.me:clear_slot(slot_idx)
+  
   return moved
 end
 
@@ -289,7 +292,7 @@ function orch_mt:execute_mutation(mutation)
     self.analyzer:process_all(self.analyze_timeout)
     
     -- Consolidate identical bees into stacks
-    utils.consolidate_buffer(self.buffer_dev, mover)
+    utils.consolidate_buffer(self.buffer_dev)
     
     -- Count target bees
     local counts = count_target_in_buffer(self.buffer_dev, target)

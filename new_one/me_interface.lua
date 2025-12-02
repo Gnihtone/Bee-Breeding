@@ -128,6 +128,15 @@ function iface_mt:configure_output_slot(stack, opts)
   return true
 end
 
+-- Clear interface slot configuration.
+function iface_mt:clear_slot(slot_idx)
+  local ok, result = pcall(self.iface.setInterfaceConfiguration, slot_idx)
+  if not ok then
+    return nil, "setInterfaceConfiguration(clear) failed: " .. tostring(result)
+  end
+  return true
+end
+
 -- Request crafting of a stack and configure the interface output slot.
 function iface_mt:request_to_interface(stack, amount, opts)
   opts = opts or {}

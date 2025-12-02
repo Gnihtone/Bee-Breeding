@@ -2,7 +2,6 @@
 -- Processes unanalyzed bees from a buffer through a Forestry Analyzer.
 
 local component = require("component")
-local analyzer = require("analyzer")
 local mover = require("mover")
 local utils = require("utils")
 
@@ -26,34 +25,11 @@ local function find_shared_nodes(buffer_dev, analyzer_dev)
   return nil, nil, "no shared transposer between buffer and analyzer"
 end
 
--- Ensure analyzer IO slots are clear; if not, try to move contents back to buffer.
-local function flush_analyzer_io(buffer_node, analyzer_node)
-  local tp = component.proxy(analyzer_node.tp)
-
-  for _, slot in ipairs({INPUT_SLOT, OUTPUT_SLOT}) do
-    local ok_stack, stack = pcall(tp.getStackInSlot, analyzer_node.side, slot)
-    if ok_stack and stack then
-      -- Find free slot in buffer
-      local ok_size, size = pcall(tp.getInventorySize, buffer_node.side)
-      if ok_size and type(size) == "number" then
-        for dst_slot = 1, size do
-          local ok_dst, dst_stack = pcall(tp.getStackInSlot, buffer_node.side, dst_slot)
-          if ok_dst and not dst_stack then
-            local moved = mover.move_between_nodes(analyzer_node, buffer_node, nil, slot, dst_slot)
-            if moved then break end
-          end
-        end
-      end
-    end
-  end
-  return true
-end
-
-local function wait_for_output(analyzer_node, timeout_sec)
-  local tp = component.proxy(analyzer_node.tp)
+-- Wait for analyzer output slot to have items.
+local function wait_for_output(tp, analyzer_side, timeout_sec)
   local waited = 0
   while true do
-    local ok_stack, stack = pcall(tp.getStackInSlot, analyzer_node.side, OUTPUT_SLOT)
+    local ok_stack, stack = pcall(tp.getStackInSlot, analyzer_side, OUTPUT_SLOT)
     if ok_stack and stack then
       return stack
     end
@@ -65,79 +41,86 @@ local function wait_for_output(analyzer_node, timeout_sec)
   end
 end
 
--- Process one unanalyzed bee; returns true if one processed, false if none found.
-function analyzer_mt:step(timeout_sec)
-  -- Find shared transposer nodes
+-- Scan buffer and return list of slots with unanalyzed bees + list of empty slots.
+local function scan_buffer_for_unanalyzed(tp, buffer_side)
+  local unanalyzed_slots = {}
+  local empty_slots = {}
+  
+  local ok, stacks = pcall(tp.getAllStacks, buffer_side)
+  if not ok or not stacks then
+    return unanalyzed_slots, empty_slots
+  end
+  
+  local slot = 0
+  for stack in stacks do
+    slot = slot + 1
+    if not stack or not stack.name then
+      table.insert(empty_slots, slot)
+    elseif stack.individual and not stack.individual.isAnalyzed then
+      table.insert(unanalyzed_slots, slot)
+    end
+  end
+  
+  return unanalyzed_slots, empty_slots
+end
+
+-- Process all unanalyzed bees in buffer.
+function analyzer_mt:process_all(timeout_sec)
+  -- Find shared transposer nodes (once)
   local buffer_node, analyzer_node, shared_err = find_shared_nodes(self.buffer_dev, self.analyzer_dev)
   if not buffer_node then
     error(shared_err or "no shared transposer", 2)
   end
   
-  -- Debug: verify nodes are valid
-  if not buffer_node.tp or not buffer_node.side then
-    error("invalid buffer_node: tp=" .. tostring(buffer_node.tp) .. " side=" .. tostring(buffer_node.side), 2)
-  end
-  if not analyzer_node.tp or not analyzer_node.side then
-    error("invalid analyzer_node: tp=" .. tostring(analyzer_node.tp) .. " side=" .. tostring(analyzer_node.side), 2)
-  end
-
-  -- Ensure analyzer IO clear.
-  flush_analyzer_io(buffer_node, analyzer_node)
-
-  -- Find unanalyzed bee in buffer
   local tp = component.proxy(buffer_node.tp)
-  local ok_size, size = pcall(tp.getInventorySize, buffer_node.side)
-  if not ok_size or type(size) ~= "number" then
-    return false
-  end
-
-  local src_slot = nil
-  for slot = 1, size do
-    local ok_stack, stack = pcall(tp.getStackInSlot, buffer_node.side, slot)
-    if ok_stack and stack and stack.individual and not stack.individual.isAnalyzed then
-      src_slot = slot
-      break
-    end
-  end
-
-  if not src_slot then
-    return false  -- No unanalyzed bees
-  end
-
-  -- Move entire stack to analyzer input
-  local moved_in, ierr = mover.move_between_nodes(buffer_node, analyzer_node, 64, src_slot, INPUT_SLOT)
-  if not moved_in or moved_in == 0 then
-    error("move to analyzer failed: " .. tostring(ierr), 2)
-  end
-
-  -- Wait for output
-  local analyzed_stack, werr = wait_for_output(analyzer_node, timeout_sec)
-  if not analyzed_stack then
-    error(werr, 2)
-  end
-
-  -- Find free slot in buffer and move analyzed bee back
-  for dst_slot = 1, size do
-    local ok_dst, dst_stack = pcall(tp.getStackInSlot, buffer_node.side, dst_slot)
-    if ok_dst and not dst_stack then
-      local moved_out, oerr = mover.move_between_nodes(analyzer_node, buffer_node, nil, OUTPUT_SLOT, dst_slot)
-      if not moved_out then
-        error("move from analyzer failed: " .. tostring(oerr), 2)
+  
+  -- Flush any stuck items in analyzer IO slots
+  for _, slot in ipairs({INPUT_SLOT, OUTPUT_SLOT}) do
+    local ok_stack, stack = pcall(tp.getStackInSlot, analyzer_node.side, slot)
+    if ok_stack and stack then
+      local _, empty_slots = scan_buffer_for_unanalyzed(tp, buffer_node.side)
+      if #empty_slots > 0 then
+        mover.move_between_nodes(analyzer_node, buffer_node, nil, slot, empty_slots[1])
       end
-      break
     end
   end
-
+  
+  -- Scan buffer once for all unanalyzed bees
+  local unanalyzed_slots, empty_slots = scan_buffer_for_unanalyzed(tp, buffer_node.side)
+  
+  if #unanalyzed_slots == 0 then
+    return true  -- Nothing to analyze
+  end
+  
+  -- Process each unanalyzed slot
+  local empty_idx = 1
+  for _, src_slot in ipairs(unanalyzed_slots) do
+    -- Move to analyzer input
+    local moved_in, ierr = mover.move_between_nodes(buffer_node, analyzer_node, 64, src_slot, INPUT_SLOT)
+    if not moved_in or moved_in == 0 then
+      error("move to analyzer failed: " .. tostring(ierr), 2)
+    end
+    
+    -- The source slot is now empty, add to empty_slots
+    table.insert(empty_slots, src_slot)
+    
+    -- Wait for output
+    local analyzed_stack, werr = wait_for_output(tp, analyzer_node.side, timeout_sec)
+    if not analyzed_stack then
+      error(werr, 2)
+    end
+    
+    -- Move back to buffer using tracked empty slot
+    local dst_slot = empty_slots[empty_idx]
+    empty_idx = empty_idx + 1
+    
+    local moved_out, oerr = mover.move_between_nodes(analyzer_node, buffer_node, nil, OUTPUT_SLOT, dst_slot)
+    if not moved_out then
+      error("move from analyzer failed: " .. tostring(oerr), 2)
+    end
+  end
+  
   return true
-end
-
-function analyzer_mt:process_all(timeout_ticks)
-  while true do
-    local processed = self:step(timeout_ticks)
-    if not processed then
-      return true
-    end
-  end
 end
 
 local function new(buffer_dev, analyzer_dev)
