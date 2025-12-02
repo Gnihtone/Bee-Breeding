@@ -11,12 +11,13 @@ local bee_stock = require("bee_stock")
 local me_interface = require("me_interface")
 local pathfinder = require("pathfinder")
 local orchestrator = require("orchestrator")
+local config = require("config")
 
-local MUTATIONS_FILE = "bee_mutations.txt"
-local REQUIREMENTS_FILE = "bee_requirements.txt"
+local MUTATIONS_FILE = config.MUTATIONS_FILE
+local REQUIREMENTS_FILE = config.REQUIREMENTS_FILE
 
-local DRONES_NEEDED = 64
-local PRINCESS_NEEDED = 1
+local DRONES_NEEDED = config.DRONES_NEEDED
+local PRINCESS_NEEDED = config.PRINCESS_NEEDED
 
 -- Global state
 local devices = nil

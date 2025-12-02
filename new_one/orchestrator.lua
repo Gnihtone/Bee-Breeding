@@ -13,8 +13,9 @@ local acclimatizer_proc = require("acclimatizer_proc")
 local foundation = require("foundation")
 local me_interface = require("me_interface")
 
-local DRONES_NEEDED = 64
-local INITIAL_DRONES_PER_PARENT = 16
+local config = require("config")
+local DRONES_NEEDED = config.DRONES_NEEDED
+local INITIAL_DRONES_PER_PARENT = config.INITIAL_DRONES_PER_PARENT
 
 local device_nodes = utils.device_nodes
 local find_free_slot = utils.find_free_slot
@@ -310,7 +311,7 @@ function orch_mt:execute_mutation(mutation)
     end
     
     -- Free memory periodically
-    os.sleep(0)  -- yield to allow garbage collection
+    collectgarbage("collect") -- yield to allow garbage collection
   end
   
   -- Sort buffer: pure → ME, hybrids → trash

@@ -1,6 +1,8 @@
 -- analyzer.lua
 -- Helpers to inspect bee stacks for purity and pristine status.
 
+local config = require("config")
+
 local function get_species(stack)
   -- Prefer human-readable species name from displayName (e.g., "Forest", "Common").
   if stack and stack.individual and stack.individual.displayName then
@@ -154,7 +156,8 @@ local function get_tolerance_level(tolerance_str)
   return tonumber(num) or 0
 end
 
--- Check if bee has been sufficiently acclimatized (both tolerances >= 3).
+-- Check if bee has been sufficiently acclimatized.
+-- Both tolerances must be >= MIN_TOLERANCE_LEVEL, and at least one >= MAX_TOLERANCE_LEVEL.
 local function is_acclimatized(stack)
   local temp_tol = get_temperature_tolerance(stack)
   local hum_tol = get_humidity_tolerance(stack)
@@ -162,8 +165,11 @@ local function is_acclimatized(stack)
   local temp_level = get_tolerance_level(temp_tol)
   local hum_level = get_tolerance_level(hum_tol)
   
-  -- Both tolerances must be at least 3
-  return temp_level >= 3 and hum_level >= 3 and (temp_level == 5 or hum_level == 5)
+  local min_level = config.MIN_TOLERANCE_LEVEL
+  local max_level = config.MAX_TOLERANCE_LEVEL
+  
+  return temp_level >= min_level and hum_level >= min_level 
+    and (temp_level >= max_level or hum_level >= max_level)
 end
 
 return {

@@ -5,28 +5,17 @@ local component = require("component")
 local mover = require("mover")
 local utils = require("utils")
 local analyzer = require("analyzer")
+local config = require("config")
 
 local INPUT_SLOT = 1
 local CLIMATE_SLOT = 6   -- Reagent for temperature
 local HUMIDITY_SLOT = 7  -- Reagent for humidity
 local OUTPUT_SLOT = 9
 
-local CLIMATE_ITEMS = {
-  HOT = "Ice",
-  WARM = "Ice",
-  HELLISH = "Ice",
-  COLD = "Blaze Rod",
-  ICY = "Blaze Rod",
-}
-
-local HUMIDITY_ITEMS = {
-  DAMP = "Sand",
-  ARID = "Water Can",
-}
-
--- Default reagents when one parameter is already Normal
-local DEFAULT_CLIMATE_REAGENT = "Ice"
-local DEFAULT_HUMIDITY_REAGENT = "Water Can"
+local CLIMATE_ITEMS = config.CLIMATE_ITEMS
+local HUMIDITY_ITEMS = config.HUMIDITY_ITEMS
+local DEFAULT_CLIMATE_REAGENT = config.DEFAULT_CLIMATE_REAGENT
+local DEFAULT_HUMIDITY_REAGENT = config.DEFAULT_HUMIDITY_REAGENT
 
 local device_nodes = utils.device_nodes
 local find_free_slot = utils.find_free_slot
