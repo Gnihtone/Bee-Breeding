@@ -262,16 +262,15 @@ function orch_mt:execute_mutation(mutation)
   -- Build requirements table for acclimatizer
   local requirements_by_bee = {}
   if climate ~= "Normal" or humidity ~= "Normal" then
-    requirements_by_bee[target] = {climate = climate, humidity = humidity}
-    requirements_by_bee[parent1] = {climate = climate, humidity = humidity}
-    requirements_by_bee[parent2] = {climate = climate, humidity = humidity}
+    requirements_by_bee.climate = climate
+    requirements_by_bee.humidity = humidity
   end
   
   -- Setup apiary breeding task
   self.apiary:set_breeding_task(parent1, parent2, target)
   
   -- Initial acclimatization if needed
-  if next(requirements_by_bee) then
+  if requirements_by_bee.climate or requirements_by_bee.humidity then
     self.acclimatizer:process_all(requirements_by_bee)
     print("  Initial acclimatization complete")
   end
@@ -305,8 +304,8 @@ function orch_mt:execute_mutation(mutation)
       break
     end
     
-    -- Acclimatize princess for next cycle (if requirements exist)
-    if next(requirements_by_bee) then
+    -- Acclimatize princess (and drone if self-breeding) for next cycle
+    if requirements_by_bee.climate or requirements_by_bee.humidity then
       self.acclimatizer:process_all(requirements_by_bee)
     end
     

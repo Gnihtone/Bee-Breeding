@@ -103,6 +103,62 @@ local function get_requirements(stack)
   }
 end
 
+-- Get temperature tolerance from bee NBT.
+-- Returns: "None", "Both 1", "Up 1", "Down 1", "Both 2", etc.
+local function get_temperature_tolerance(stack)
+  if not stack or not stack.individual then
+    return "None"
+  end
+  
+  local active = stack.individual.active
+  if active then
+    if active.temperatureTolerance then
+      return active.temperatureTolerance
+    end
+    if active.species and active.species.temperatureTolerance then
+      return active.species.temperatureTolerance
+    end
+  end
+  
+  return "None"
+end
+
+-- Get humidity tolerance from bee NBT.
+-- Returns: "None", "Both 1", "Up 1", "Down 1", "Both 2", etc.
+local function get_humidity_tolerance(stack)
+  if not stack or not stack.individual then
+    return "None"
+  end
+  
+  local active = stack.individual.active
+  if active then
+    if active.humidityTolerance then
+      return active.humidityTolerance
+    end
+    if active.species and active.species.humidityTolerance then
+      return active.species.humidityTolerance
+    end
+  end
+  
+  return "None"
+end
+
+-- Check if tolerance string contains "5" (fully acclimatized).
+-- Examples: "Both 5", "Up 5", "Down 5"
+local function has_max_tolerance(tolerance_str)
+  if not tolerance_str then return false end
+  return string.find(tolerance_str, "5") ~= nil
+end
+
+-- Check if bee has been fully acclimatized (has 5 in either tolerance).
+local function is_acclimatized(stack)
+  local temp_tol = get_temperature_tolerance(stack)
+  local hum_tol = get_humidity_tolerance(stack)
+  
+  -- If either tolerance has 5, bee is fully acclimatized
+  return has_max_tolerance(temp_tol) or has_max_tolerance(hum_tol)
+end
+
 return {
   get_species = get_species,
   is_pure = is_pure,
@@ -111,4 +167,7 @@ return {
   get_climate = get_climate,
   get_humidity = get_humidity,
   get_requirements = get_requirements,
+  get_temperature_tolerance = get_temperature_tolerance,
+  get_humidity_tolerance = get_humidity_tolerance,
+  is_acclimatized = is_acclimatized,
 }

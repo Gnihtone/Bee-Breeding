@@ -11,9 +11,15 @@ local function is_available(species, stock)
   return s.drone >= 64 and s.princess >= 1
 end
 
+-- Check if mutation has special conditions we can't handle automatically.
+local function has_special_conditions(mut)
+  return mut.other and mut.other ~= "none" and mut.other ~= ""
+end
+
 -- Build a path of mutations from available species to target.
 -- Returns: list of {parent1, parent2, child, block, climate, humidity} or nil, error
-function pathfinder.build_path(target, mutations_data, requirements_data, stock)
+-- If skip_special is true, mutations with special conditions are skipped.
+local function build_path_internal(target, mutations_data, requirements_data, stock, skip_special)
   if not mutations_data or not mutations_data.byChild then
     return nil, "mutations data required"
   end
@@ -53,11 +59,18 @@ function pathfinder.build_path(target, mutations_data, requirements_data, stock)
   local function get_possible_mutations()
     local possible = {}
     for _, mut in ipairs(mutations_data.list) do
+      -- Skip mutations with special conditions if requested
+      if skip_special and has_special_conditions(mut) then
+        goto continue
+      end
+      
       local p1_ok = available[mut.p1] or visited[mut.p1]
       local p2_ok = available[mut.p2] or visited[mut.p2]
       if p1_ok and p2_ok and not visited[mut.child] then
         table.insert(possible, mut)
       end
+      
+      ::continue::
     end
     return possible
   end
@@ -152,6 +165,24 @@ function pathfinder.build_path(target, mutations_data, requirements_data, stock)
   local needed = {}
   needed[target] = true
   
+  -- Find best mutation for species (prefer ones without special conditions)
+  local function find_best_mutation(species)
+    local muts = mutations_data.byChild[species]
+    if not muts then return nil end
+    
+    -- First try to find mutation without special conditions
+    if skip_special then
+      for _, mut in ipairs(muts) do
+        if not has_special_conditions(mut) then
+          return mut
+        end
+      end
+    end
+    
+    -- Fallback to first mutation
+    return muts[1]
+  end
+  
   -- Find all species we need to produce
   local function add_needed(species)
     if produced[species] or needed[species] then
@@ -159,9 +190,8 @@ function pathfinder.build_path(target, mutations_data, requirements_data, stock)
     end
     needed[species] = true
     
-    local muts = mutations_data.byChild[species]
-    if muts and muts[1] then
-      local mut = muts[1]  -- Take first mutation option
+    local mut = find_best_mutation(species)
+    if mut then
       if not produced[mut.p1] then add_needed(mut.p1) end
       if not produced[mut.p2] then add_needed(mut.p2) end
     end
@@ -172,9 +202,9 @@ function pathfinder.build_path(target, mutations_data, requirements_data, stock)
   -- Topological sort - produce in correct order
   local remaining = {}
   for species in pairs(needed) do
-    local muts = mutations_data.byChild[species]
-    if muts and muts[1] then
-      remaining[species] = muts[1]
+    local mut = find_best_mutation(species)
+    if mut then
+      remaining[species] = mut
     end
   end
   
@@ -207,6 +237,55 @@ function pathfinder.build_path(target, mutations_data, requirements_data, stock)
   end
   
   return path
+end
+
+-- Public function: build path, preferring mutations without special conditions.
+-- If no path found without special conditions, tries with them and warns user.
+function pathfinder.build_path(target, mutations_data, requirements_data, stock)
+  -- First try without special conditions
+  local path, err = build_path_internal(target, mutations_data, requirements_data, stock, true)
+  
+  if path then
+    return path
+  end
+  
+  -- No path found, try with special conditions
+  local path_with_special, err2 = build_path_internal(target, mutations_data, requirements_data, stock, false)
+  
+  if not path_with_special then
+    return nil, err  -- Return original error
+  end
+  
+  -- Found path but requires special conditions - find which ones
+  local special_mutations = {}
+  for _, step in ipairs(path_with_special) do
+    -- Find the original mutation to check its 'other' field
+    local muts = mutations_data.byChild[step.child]
+    if muts then
+      for _, mut in ipairs(muts) do
+        if mut.p1 == step.parent1 and mut.p2 == step.parent2 then
+          if has_special_conditions(mut) then
+            table.insert(special_mutations, {
+              child = step.child,
+              conditions = mut.other
+            })
+          end
+          break
+        end
+      end
+    end
+  end
+  
+  if #special_mutations > 0 then
+    local msg = "Path requires mutations with special conditions:\n"
+    for _, sm in ipairs(special_mutations) do
+      msg = msg .. "  - " .. sm.child .. ": " .. sm.conditions .. "\n"
+    end
+    msg = msg .. "These conditions cannot be handled automatically."
+    return nil, msg
+  end
+  
+  return path_with_special
 end
 
 return pathfinder
