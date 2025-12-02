@@ -132,6 +132,72 @@ local function sort_buffer(self, target_species, parent1, parent2)
   end
 end
 
+-- Clean buffer during breeding: keep only princess and best drone stack of target species.
+-- Everything else (hybrids, extra drones, non-target species) → trash
+local function clean_buffer(self, target_species)
+  local nodes = device_nodes(self.buffer_dev)
+  if #nodes == 0 then return end
+  
+  local node = nodes[1]
+  local tp = component.proxy(node.tp)
+  
+  local ok, stacks = pcall(tp.getAllStacks, node.side)
+  if not ok or not stacks then return end
+  
+  -- First pass: find princess slot and best drone stack
+  local princess_slot = nil
+  local best_drone_slot = nil
+  local best_drone_size = 0
+  
+  local slot = 0
+  local slots_to_trash = {}
+  
+  for stack in stacks do
+    slot = slot + 1
+    if stack and stack.individual then
+      local species = analyzer.get_species(stack)
+      local is_pure = analyzer.is_pure(stack)
+      local is_princess = analyzer.is_princess(stack)
+      
+      if species == target_species and is_pure then
+        if is_princess then
+          if princess_slot then
+            -- Already have a princess, trash this one
+            table.insert(slots_to_trash, slot)
+          else
+            princess_slot = slot
+          end
+        else
+          -- Drone
+          local size = stack.size or 1
+          if size > best_drone_size then
+            -- New best drone stack, trash the old one
+            if best_drone_slot then
+              table.insert(slots_to_trash, best_drone_slot)
+            end
+            best_drone_slot = slot
+            best_drone_size = size
+          else
+            -- Not the best, trash it
+            table.insert(slots_to_trash, slot)
+          end
+        end
+      else
+        -- Not pure target → trash
+        table.insert(slots_to_trash, slot)
+      end
+    end
+  end
+  
+  -- Move all trash slots
+  for _, trash_slot in ipairs(slots_to_trash) do
+    local _, dst_slot = find_free_slot(self.trash_dev)
+    if dst_slot then
+      mover.move_between_devices(self.buffer_dev, self.trash_dev, 64, trash_slot, dst_slot)
+    end
+  end
+end
+
 -- Find bee in ME network by species and type.
 local function find_bee_in_me(self, species, is_princess)
   -- Get all items and filter manually for more control
@@ -318,6 +384,10 @@ function orch_mt:execute_mutation(mutation)
     -- Free memory periodically
     os.sleep(0) -- yield to allow garbage collection
   end
+  
+  -- Clean buffer: keep only target princess and best drone stack, trash the rest
+  clean_buffer(self, target)
+  print("  Buffer cleaned")
   
   -- Sort buffer: pure → ME, hybrids → trash
   sort_buffer(self, target, parent1, parent2)
