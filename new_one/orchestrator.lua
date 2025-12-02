@@ -50,9 +50,9 @@ local function get_requirements(self, species)
 end
 
 -- Count target bees in buffer.
--- Returns: {drones = N, has_princess = bool}
+-- Returns: {max_drone_stack = N, total_drones = N, has_princess = bool}
 local function count_target_in_buffer(buffer_dev, target_species)
-  local result = {drones = 0, has_princess = false}
+  local result = {max_drone_stack = 0, total_drones = 0, has_princess = false}
   
   -- Use only first node - all nodes point to the same physical inventory
   local nodes = device_nodes(buffer_dev)
@@ -69,7 +69,11 @@ local function count_target_in_buffer(buffer_dev, target_species)
           if analyzer.is_princess(stack) then
             result.has_princess = true
           else
-            result.drones = result.drones + (stack.size or 1)
+            local size = stack.size or 1
+            result.total_drones = result.total_drones + size
+            if size > result.max_drone_stack then
+              result.max_drone_stack = size
+            end
           end
         end
       end
@@ -296,11 +300,12 @@ function orch_mt:execute_mutation(mutation)
     
     -- Count target bees
     local counts = count_target_in_buffer(self.buffer_dev, target)
-    print(string.format("    Target: %d drones, princess: %s", 
-      counts.drones, counts.has_princess and "yes" or "no"))
+    print(string.format("    Target: %d/%d drones (max stack: %d), princess: %s", 
+      counts.total_drones, DRONES_NEEDED, counts.max_drone_stack, 
+      counts.has_princess and "yes" or "no"))
     
-    -- Check if goal reached
-    if counts.drones >= DRONES_NEEDED and counts.has_princess then
+    -- Check if goal reached (need a single stack of DRONES_NEEDED)
+    if counts.max_drone_stack >= DRONES_NEEDED and counts.has_princess then
       print(string.format("  Goal reached for %s!", target))
       break
     end
@@ -311,7 +316,7 @@ function orch_mt:execute_mutation(mutation)
     end
     
     -- Free memory periodically
-    collectgarbage("collect") -- yield to allow garbage collection
+    os.sleep(0) -- yield to allow garbage collection
   end
   
   -- Sort buffer: pure → ME, hybrids → trash

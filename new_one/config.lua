@@ -14,7 +14,7 @@ config.DRONES_NEEDED = 64
 config.PRINCESS_NEEDED = 1
 
 -- Initial drones to request per parent species
-config.INITIAL_DRONES_PER_PARENT = 16
+config.INITIAL_DRONES_PER_PARENT = 8
 
 -- ============================================================================
 -- ACCLIMATIZATION SETTINGS
