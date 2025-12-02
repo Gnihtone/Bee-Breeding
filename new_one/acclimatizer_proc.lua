@@ -7,21 +7,26 @@ local utils = require("utils")
 local analyzer = require("analyzer")
 
 local INPUT_SLOT = 1
-local ITEM_SLOT = 6
+local CLIMATE_SLOT = 6   -- Reagent for temperature
+local HUMIDITY_SLOT = 7  -- Reagent for humidity
 local OUTPUT_SLOT = 9
 
 local CLIMATE_ITEMS = {
-  HOT = "Blaze Rod",
-  WARM = "Blaze Rod",
-  HELLISH = "Blaze Rod",
-  COLD = "Ice",
-  ICY = "Ice",
+  HOT = "Ice",
+  WARM = "Ice",
+  HELLISH = "Ice",
+  COLD = "Blaze Rod",
+  ICY = "Blaze Rod",
 }
 
 local HUMIDITY_ITEMS = {
-  DAMP = "Water Can",
-  ARID = "Sand",
+  DAMP = "Sand",
+  ARID = "Water Can",
 }
+
+-- Default reagents when one parameter is already Normal
+local DEFAULT_CLIMATE_REAGENT = "Ice"
+local DEFAULT_HUMIDITY_REAGENT = "Water Can"
 
 local device_nodes = utils.device_nodes
 local find_free_slot = utils.find_free_slot
@@ -48,175 +53,134 @@ end
 local accl_mt = {}
 accl_mt.__index = accl_mt
 
--- Clear the item slot if it contains the wrong reagent.
-local function clear_wrong_reagent(self, accl_node, needed_label)
+-- Clear a specific slot in acclimatizer, move contents to mats storage.
+local function clear_slot(self, accl_node, slot)
   local tp = component.proxy(accl_node.tp)
-  local ok_stack, stack = pcall(tp.getStackInSlot, accl_node.side, ITEM_SLOT)
+  local ok_stack, stack = pcall(tp.getStackInSlot, accl_node.side, slot)
   if not ok_stack or not stack then
-    return true -- slot is empty
-  end
-  if stack.label == needed_label then
-    return true -- correct reagent already there
+    return true  -- Already empty
   end
   
-  -- Wrong reagent - move it back to mats storage
   local dst_node, dst_slot = find_free_slot(self.mats_dev)
   if not dst_node then
-    return nil, "no free slot in mats storage for old reagent"
+    return nil, "no free slot in mats storage"
   end
   
-  -- Find accl node that shares transposer with dst_node
   local accl_for_dst = find_accl_node_for(self.accl_dev, dst_node)
   if not accl_for_dst then
     return nil, "cannot return reagent: no shared transposer"
   end
   
-  local moved, merr = mover.move_between_nodes(accl_for_dst, dst_node, nil, ITEM_SLOT, dst_slot)
-  if not moved then
-    return nil, "failed to remove old reagent: " .. tostring(merr)
-  end
+  mover.move_between_nodes(accl_for_dst, dst_node, nil, slot, dst_slot)
   return true
 end
 
--- Load a specific reagent into acclimatizer item slot.
-local function load_reagent(self, accl_node, label)
-  local tp = component.proxy(accl_node.tp)
-  
-  -- Check if correct reagent already present
-  local ok_stack, stack = pcall(tp.getStackInSlot, accl_node.side, ITEM_SLOT)
-  if ok_stack and stack and stack.label == label then
-    return true
-  end
-  
+-- Load reagent into a specific slot (up to 64).
+local function load_to_slot(self, accl_node, slot, label)
   -- Find reagent in mats storage
   local src_node, src_slot = find_slot_with(self.mats_dev, label)
   if not src_node then
-    return nil, "reagent not found in mats storage: " .. label
+    return nil, "reagent not found: " .. label
   end
   
-  -- Find accl node that shares transposer with src_node
   local accl_for_src = find_accl_node_for(self.accl_dev, src_node)
   if not accl_for_src then
-    return nil, "cannot load reagent: no shared transposer with mats"
+    return nil, "cannot load reagent: no shared transposer"
   end
   
-  local moved, merr = mover.move_between_nodes(src_node, accl_for_src, nil, src_slot, ITEM_SLOT)
-  if not moved then
-    return nil, "move reagent failed: " .. tostring(merr)
-  end
-  return true
+  local moved = mover.move_between_nodes(src_node, accl_for_src, 64, src_slot, slot)
+  return moved and moved > 0
 end
 
--- Determine which reagents are needed for given climate/humidity requirements.
-local function get_needed_reagents(climate, humidity)
-  local reagents = {}
-  if climate and CLIMATE_ITEMS[climate] then
-    table.insert(reagents, CLIMATE_ITEMS[climate])
-  end
-  if humidity and HUMIDITY_ITEMS[humidity] then
-    local h_item = HUMIDITY_ITEMS[humidity]
-    -- Avoid duplicates
-    local found = false
-    for _, r in ipairs(reagents) do
-      if r == h_item then found = true; break end
-    end
-    if not found then
-      table.insert(reagents, h_item)
-    end
-  end
-  return reagents
-end
-
--- Refill reagent in acclimatizer if low or empty.
-local function refill_reagent_if_needed(self, accl_node, reagent_label, min_count)
-  min_count = min_count or 16
+-- Refill reagent slot if running low.
+local function refill_slot_if_needed(self, accl_node, slot, label, min_count)
+  min_count = min_count or 8
   local tp = component.proxy(accl_node.tp)
   
-  local ok_stack, stack = pcall(tp.getStackInSlot, accl_node.side, ITEM_SLOT)
-  
-  -- Check if refill needed
-  local current_count = 0
+  local ok_stack, stack = pcall(tp.getStackInSlot, accl_node.side, slot)
+  local current = 0
   if ok_stack and stack then
-    if stack.label ~= reagent_label then
-      -- Wrong reagent, don't touch it here (should have been cleared before)
-      return true
-    end
-    current_count = stack.size or 1
+    current = stack.size or 0
   end
   
-  if current_count >= min_count then
-    return true -- Enough reagent
+  if current >= min_count then
+    return true
   end
   
-  -- Need to refill - find reagent in mats storage
-  local src_node, src_slot, src_stack = find_slot_with(self.mats_dev, reagent_label)
-  if not src_node then
-    -- No more reagent available, but we might have some left
-    if current_count > 0 then
-      return true -- Use what we have
-    end
-    return nil, "reagent depleted: " .. reagent_label
-  end
-  
-  -- Find accl node that shares transposer with src_node
-  local accl_for_src = find_accl_node_for(self.accl_dev, src_node)
-  if not accl_for_src then
-    if current_count > 0 then
-      return true -- Can't refill but have some
-    end
-    return nil, "cannot refill: no shared transposer with mats"
-  end
-  
-  -- Move reagent to acclimatizer (will stack with existing)
-  local to_move = src_stack and src_stack.size or 64
-  mover.move_between_nodes(src_node, accl_for_src, to_move, src_slot, ITEM_SLOT)
-  
+  -- Try to refill
+  load_to_slot(self, accl_node, slot, label)
   return true
 end
 
--- Process bee through acclimatizer with a single reagent.
--- Returns processed stack or nil, error.
-local function process_with_reagent(self, accl_node, bee_node, bee_slot, reagent_label, timeout_sec)
-  -- Clear wrong reagent and load correct one
-  local ok_clear, cerr = clear_wrong_reagent(self, accl_node, reagent_label)
-  if not ok_clear then
-    return nil, cerr
+-- Get reagent label for climate requirement.
+local function get_climate_reagent(climate)
+  if not climate then return nil end
+  local upper = string.upper(climate)
+  return CLIMATE_ITEMS[upper]
+end
+
+-- Get reagent label for humidity requirement.
+local function get_humidity_reagent(humidity)
+  if not humidity then return nil end
+  local upper = string.upper(humidity)
+  return HUMIDITY_ITEMS[upper]
+end
+
+-- Process princess through acclimatizer.
+-- Uses slot 6 for climate reagent, slot 7 for humidity reagent.
+-- Keeps refilling reagents until output appears.
+local function process_princess(self, buffer_node, princess_slot, climate, humidity, timeout_sec)
+  local accl_node = find_accl_node_for(self.accl_dev, buffer_node)
+  if not accl_node then
+    return nil, "no acclimatizer shares transposer with buffer"
   end
   
-  local ok_load, lerr = load_reagent(self, accl_node, reagent_label)
-  if not ok_load then
-    return nil, lerr
+  local tp = component.proxy(accl_node.tp)
+  
+  -- Determine reagents
+  local climate_reagent = get_climate_reagent(climate) or DEFAULT_CLIMATE_REAGENT
+  local humidity_reagent = get_humidity_reagent(humidity) or DEFAULT_HUMIDITY_REAGENT
+  
+  -- Clear both slots first
+  clear_slot(self, accl_node, CLIMATE_SLOT)
+  clear_slot(self, accl_node, HUMIDITY_SLOT)
+  
+  -- Load initial reagents (64 each)
+  local ok1, err1 = load_to_slot(self, accl_node, CLIMATE_SLOT, climate_reagent)
+  if not ok1 then
+    return nil, "failed to load climate reagent: " .. tostring(err1)
   end
   
-  -- Find accl node that shares transposer with bee_node
-  local accl_for_bee = find_accl_node_for(self.accl_dev, bee_node)
-  if not accl_for_bee then
-    return nil, "no acclimatizer shares transposer with bee buffer"
+  local ok2, err2 = load_to_slot(self, accl_node, HUMIDITY_SLOT, humidity_reagent)
+  if not ok2 then
+    return nil, "failed to load humidity reagent: " .. tostring(err2)
   end
   
-  -- Move bee into acclimatizer
-  local moved_in, ierr = mover.move_between_nodes(bee_node, accl_for_bee, nil, bee_slot, INPUT_SLOT)
+  -- Move princess into acclimatizer
+  local moved_in = mover.move_between_nodes(buffer_node, accl_node, 1, princess_slot, INPUT_SLOT)
   if not moved_in then
-    return nil, "move to acclimatizer failed: " .. tostring(ierr)
+    return nil, "failed to move princess to acclimatizer"
   end
   
-  -- Wait for output, refilling reagent as needed
-  local tp = component.proxy(accl_for_bee.tp)
+  -- Wait for output, refilling reagents as needed
   local waited = 0
-  local out_stack = nil
   while true do
-    -- Check if output ready
-    local ok_stack, stack = pcall(tp.getStackInSlot, accl_for_bee.side, OUTPUT_SLOT)
+    local ok_stack, stack = pcall(tp.getStackInSlot, accl_node.side, OUTPUT_SLOT)
     if ok_stack and stack then
-      out_stack = stack
-      break
+      -- Move back to buffer
+      local dst_node, dst_slot = find_free_slot(self.buffer_dev)
+      if dst_node then
+        mover.move_between_nodes(accl_node, dst_node, 1, OUTPUT_SLOT, dst_slot)
+      end
+      -- Clear reagent slots
+      clear_slot(self, accl_node, CLIMATE_SLOT)
+      clear_slot(self, accl_node, HUMIDITY_SLOT)
+      return true
     end
     
-    -- Refill reagent if running low
-    local ok_refill, refill_err = refill_reagent_if_needed(self, accl_for_bee, reagent_label, 16)
-    if not ok_refill then
-      return nil, refill_err
-    end
+    -- Refill reagents if running low
+    refill_slot_if_needed(self, accl_node, CLIMATE_SLOT, climate_reagent, 8)
+    refill_slot_if_needed(self, accl_node, HUMIDITY_SLOT, humidity_reagent, 8)
     
     if timeout_sec and waited >= timeout_sec then
       return nil, "acclimatizer timeout"
@@ -224,129 +188,63 @@ local function process_with_reagent(self, accl_node, bee_node, bee_slot, reagent
     os.sleep(0.5)
     waited = waited + 0.5
   end
-  
-  return out_stack, accl_for_bee
 end
 
--- Scan buffer for all bees needing acclimatization (non-Normal climate/humidity).
--- Returns list of {slot, climate, humidity}
-local function scan_pending(buffer_dev)
+-- Find princess needing acclimatization in buffer.
+-- Returns {slot, climate, humidity, node} or nil.
+local function find_princess_to_acclimatize(buffer_dev)
   local nodes = device_nodes(buffer_dev)
-  if #nodes == 0 then return {} end
+  if #nodes == 0 then return nil end
   
   local node = nodes[1]
   local tp = component.proxy(node.tp)
   
   local ok, stacks = pcall(tp.getAllStacks, node.side)
-  if not ok or not stacks then return {} end
+  if not ok or not stacks then return nil end
   
-  local pending = {}
   local slot = 0
   for stack in stacks do
     slot = slot + 1
-    if stack and stack.individual then
+    if stack and stack.individual and analyzer.is_princess(stack) then
       local climate = analyzer.get_climate(stack)
       local humidity = analyzer.get_humidity(stack)
       
-      if climate ~= "Normal" or humidity ~= "Normal" then
-        table.insert(pending, {
+      if string.upper(climate) ~= "NORMAL" or string.upper(humidity) ~= "NORMAL" then
+        return {
           slot = slot,
           climate = climate,
           humidity = humidity,
-        })
+          node = node,
+        }
       end
     end
   end
   
-  return pending, node
+  return nil
 end
 
--- Process a single bee through acclimatization.
--- src_node, src_slot: where the bee is
--- req: {climate, humidity}
--- timeout_sec: timeout per reagent
-local function process_one_bee(self, src_node, src_slot, req, timeout_sec)
-  -- Get list of reagents needed (may be 1 or 2)
-  local reagents = get_needed_reagents(req.climate, req.humidity)
-  if #reagents == 0 then
-    return true  -- Nothing to do
-  end
-
-  local current_node = src_node
-  local current_slot = src_slot
-  
-  -- Process through each reagent
-  for i, reagent in ipairs(reagents) do
-    local accl_node = find_accl_node_for(self.accl_dev, current_node)
-    if not accl_node then
-      error("no acclimatizer shares transposer with buffer", 2)
-    end
-    
-    local out_stack, used_accl_node = process_with_reagent(
-      self, accl_node, current_node, current_slot, reagent, timeout_sec
-    )
-    if not out_stack then
-      error(used_accl_node, 2) -- used_accl_node contains error message
-    end
-    
-    -- If more reagents to process, move to buffer temporarily
-    if i < #reagents then
-      local tmp_node, tmp_slot, ferr = find_free_slot(self.buffer_dev)
-      if not tmp_node then
-        error(ferr or "no free slot in buffer for intermediate", 2)
-      end
-      
-      local accl_for_tmp = find_accl_node_for(self.accl_dev, tmp_node)
-      if not accl_for_tmp then
-        error("no shared transposer for intermediate move", 2)
-      end
-      
-      local moved_tmp, terr = mover.move_between_nodes(accl_for_tmp, tmp_node, nil, OUTPUT_SLOT, tmp_slot)
-      if not moved_tmp then
-        error("intermediate move failed: " .. tostring(terr), 2)
-      end
-      
-      current_node = tmp_node
-      current_slot = tmp_slot
-    else
-      -- Last reagent - move final result back to buffer
-      local dst_node, dst_slot, ferr = find_free_slot(self.buffer_dev)
-      if not dst_node then
-        error(ferr or "no free slot in buffer", 2)
-      end
-      
-      local accl_for_dst = find_accl_node_for(self.accl_dev, dst_node)
-      if not accl_for_dst then
-        error("no shared transposer for final move", 2)
-      end
-      
-      local moved_out, oerr = mover.move_between_nodes(accl_for_dst, dst_node, nil, OUTPUT_SLOT, dst_slot)
-      if not moved_out then
-        error("move from acclimatizer failed: " .. tostring(oerr), 2)
-      end
-    end
-  end
-  
-  return true
-end
-
--- Process all pending bees.
--- timeout_sec: timeout per bee in seconds
--- requirements_by_bee is ignored (legacy), reads from NBT directly.
+-- Process all pending bees (just the princess).
+-- timeout_sec: timeout in seconds
 function accl_mt:process_all(requirements_by_bee, timeout_sec)
-  -- Scan buffer once for all pending bees
-  local pending, buffer_node = scan_pending(self.buffer_dev)
+  local princess = find_princess_to_acclimatize(self.buffer_dev)
   
-  if #pending == 0 then
+  if not princess then
     return true  -- Nothing to process
   end
   
-  -- Process each pending bee
-  for _, bee in ipairs(pending) do
-    process_one_bee(self, buffer_node, bee.slot, {
-      climate = bee.climate,
-      humidity = bee.humidity,
-    }, timeout_sec)
+  print("    Acclimatizing princess: climate=" .. princess.climate .. ", humidity=" .. princess.humidity)
+  
+  local ok, err = process_princess(
+    self, 
+    princess.node, 
+    princess.slot, 
+    princess.climate, 
+    princess.humidity, 
+    timeout_sec
+  )
+  
+  if not ok then
+    error("acclimatization failed: " .. tostring(err), 2)
   end
   
   return true

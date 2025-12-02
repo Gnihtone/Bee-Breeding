@@ -305,10 +305,8 @@ function orch_mt:execute_mutation(mutation)
       break
     end
     
-    -- Acclimatize remaining bees for next cycle
-    if next(requirements_by_bee) then
-      self.acclimatizer:process_all(requirements_by_bee)
-    end
+    -- Free memory periodically
+    collectgarbage("collect")
   end
   
   -- Sort buffer: pure → ME, hybrids → trash
