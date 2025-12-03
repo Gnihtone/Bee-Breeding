@@ -352,20 +352,18 @@ function orch_mt:execute_mutation(mutation)
   print("  Loaded initial bees")
   
   -- Build requirements table for acclimatizer
-  local requirements_by_bee = {}
-  if climate ~= "Normal" or humidity ~= "Normal" then
-    requirements_by_bee.climate = climate
-    requirements_by_bee.humidity = humidity
-  end
+  -- Always acclimatize to increase tolerance - bees need high tolerance to work in any biome
+  local requirements_by_bee = {
+    climate = climate,     -- Target climate (may be Normal)
+    humidity = humidity,   -- Target humidity (may be Normal)
+  }
   
   -- Setup apiary breeding task
   self.apiary:set_breeding_task(parent1, parent2, target)
   
-  -- Initial acclimatization if needed
-  if requirements_by_bee.climate or requirements_by_bee.humidity then
-    self.acclimatizer:process_all(requirements_by_bee)
-    print("  Initial acclimatization complete")
-  end
+  -- Initial acclimatization - increase tolerance for all bees
+  self.acclimatizer:process_all(requirements_by_bee)
+  print("  Initial acclimatization complete")
   
   -- Breeding loop
   local cycle_count = 0
@@ -434,10 +432,8 @@ function orch_mt:execute_mutation(mutation)
         break
       end
       
-      -- Acclimatize princess (and drone if self-breeding) for next cycle
-      if requirements_by_bee.climate or requirements_by_bee.humidity then
-        self.acclimatizer:process_all(requirements_by_bee)
-      end
+      -- Acclimatize princess (and drones) for next cycle
+      self.acclimatizer:process_all(requirements_by_bee)
     end
     
     -- Free memory periodically

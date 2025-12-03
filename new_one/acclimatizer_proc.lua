@@ -179,9 +179,32 @@ local function process_princess(self, buffer_node, princess_slot, climate, humid
   end
 end
 
--- Find any princess in buffer.
--- Returns {slot, node} or nil.
-local function find_princess(buffer_dev)
+-- Check if a bee needs acclimatization to work in Normal biome.
+-- Returns true if bee's native climate or humidity is NOT Normal.
+local function bee_needs_acclimatization(stack)
+  if not stack or not stack.individual then
+    return false
+  end
+  
+  -- If already acclimatized (high tolerance), no need
+  if analyzer.is_acclimatized(stack) then
+    return false
+  end
+  
+  -- Check native climate/humidity
+  local climate = analyzer.get_climate(stack)
+  local humidity = analyzer.get_humidity(stack)
+  
+  -- Need acclimatization if native is NOT Normal
+  local climate_upper = climate and string.upper(climate) or "NORMAL"
+  local humidity_upper = humidity and string.upper(humidity) or "NORMAL"
+  
+  return climate_upper ~= "NORMAL" or humidity_upper ~= "NORMAL"
+end
+
+-- Find princess in buffer that needs acclimatization.
+-- Returns {slot, node, stack} or nil.
+local function find_princess_needing_acclimatization(buffer_dev)
   local nodes = device_nodes(buffer_dev)
   if #nodes == 0 then return nil end
   
@@ -195,10 +218,13 @@ local function find_princess(buffer_dev)
   for stack in stacks do
     slot = slot + 1
     if stack and stack.individual and analyzer.is_princess(stack) then
-      return {
-        slot = slot,
-        node = node,
-      }
+      if bee_needs_acclimatization(stack) then
+        return {
+          slot = slot,
+          node = node,
+          stack = stack,
+        }
+      end
     end
   end
   
@@ -221,9 +247,9 @@ local function find_drones_needing_acclimatization(buffer_dev)
   local slot = 0
   for stack in stacks do
     slot = slot + 1
-    -- Drone = has individual but is NOT princess, and not yet acclimatized
+    -- Drone = has individual but is NOT princess
     if stack and stack.individual and not analyzer.is_princess(stack) then
-      if not analyzer.is_acclimatized(stack) then
+      if bee_needs_acclimatization(stack) then
         table.insert(drones, {
           slot = slot,
           node = node,
@@ -236,31 +262,21 @@ local function find_drones_needing_acclimatization(buffer_dev)
   return drones
 end
 
--- Process princess and drone with given requirements.
--- requirements: {climate = "Hot", humidity = "Arid"}
+-- Process princess and drones - acclimatize those that need it.
+-- Only bees with non-Normal native climate/humidity need acclimatization.
+-- requirements: {climate = "Hot", humidity = "Arid"} (can be "Normal")
 -- timeout_sec: timeout in seconds
 function accl_mt:process_all(requirements, timeout_sec)
   local climate = requirements and requirements.climate
   local humidity = requirements and requirements.humidity
   
-  -- If no requirements, nothing to do
-  if not climate and not humidity then
-    return true
-  end
+  -- Find princess that needs acclimatization (non-Normal native climate/humidity)
+  local princess = find_princess_needing_acclimatization(self.buffer_dev)
   
-  -- Acclimatize princess (if not already acclimatized)
-  local princess = find_princess(self.buffer_dev)
-  if not princess then
-    return true  -- No princess to process
-  end
-  
-  -- Check if princess needs acclimatization
-  local nodes = device_nodes(self.buffer_dev)
-  local tp = component.proxy(nodes[1].tp)
-  local ok_stack, princess_stack = pcall(tp.getStackInSlot, nodes[1].side, princess.slot)
-  
-  if ok_stack and princess_stack and not analyzer.is_acclimatized(princess_stack) then
-    print("    Acclimatizing princess: climate=" .. tostring(climate) .. ", humidity=" .. tostring(humidity))
+  if princess then
+    local bee_climate = analyzer.get_climate(princess.stack) or "Normal"
+    local bee_humidity = analyzer.get_humidity(princess.stack) or "Normal"
+    print(string.format("    Acclimatizing princess (native: %s/%s)", bee_climate, bee_humidity))
     
     local ok, err = process_princess(
       self, 
@@ -274,8 +290,6 @@ function accl_mt:process_all(requirements, timeout_sec)
     if not ok then
       error("princess acclimatization failed: " .. tostring(err), 2)
     end
-  else
-    print("    Princess already acclimatized, skipping")
   end
   
   -- Acclimatize all drones that need it (needed for self-breeding or breeding new mutated pair)

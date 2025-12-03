@@ -21,7 +21,7 @@ local function find_free_slot(dev)
   if #nodes == 0 then return nil, nil, "no nodes" end
   
   local node = nodes[1]
-  local tp = component.proxy(node.tp)
+    local tp = component.proxy(node.tp)
   
   local ok, stacks = pcall(tp.getAllStacks, node.side)
   if not ok or not stacks then
@@ -32,7 +32,7 @@ local function find_free_slot(dev)
   for stack in stacks do
     slot = slot + 1
     if not stack or not stack.name then
-      return node, slot
+          return node, slot
     end
   end
   
@@ -45,7 +45,7 @@ local function find_slot_with(dev, label)
   if #nodes == 0 then return nil end
   
   local node = nodes[1]
-  local tp = component.proxy(node.tp)
+    local tp = component.proxy(node.tp)
   
   local ok, stacks = pcall(tp.getAllStacks, node.side)
   if not ok or not stacks then return nil end
@@ -54,7 +54,7 @@ local function find_slot_with(dev, label)
   for stack in stacks do
     slot = slot + 1
     if stack and stack.label == label then
-      return node, slot, stack
+          return node, slot, stack
     end
   end
   
@@ -78,12 +78,12 @@ local function consolidate_buffer(dev)
   
   -- Use only first node (all nodes point to same inventory)
   local node = nodes[1]
-  local tp = component.proxy(node.tp)
+    local tp = component.proxy(node.tp)
   
   -- Get all stacks in one call
   local ok, stacks = pcall(tp.getAllStacks, node.side)
   if not ok or not stacks then return end
-  
+    
   -- Build items list from getAllStacks
   local items = {}
   local slot = 0
@@ -118,7 +118,7 @@ local function consolidate_buffer(dev)
       if source.size == 0 then goto continue_source end
       
       -- Calculate how much we can move
-      local space = target.maxSize - target.size
+            local space = target.maxSize - target.size
       if space <= 0 then
         -- Target full, make source the new target
         target = source
@@ -127,8 +127,8 @@ local function consolidate_buffer(dev)
       
       local to_move = math.min(space, source.size)
       local ok_move, moved = pcall(tp.transferItem, node.side, node.side, to_move, source.slot, target.slot)
-      if ok_move and moved and moved > 0 then
-        target.size = target.size + moved
+              if ok_move and moved and moved > 0 then
+                target.size = target.size + moved
         source.size = source.size - moved
       end
       
