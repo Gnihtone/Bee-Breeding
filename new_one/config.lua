@@ -64,4 +64,3 @@ config.BREEDING_CYCLE_TIMEOUT = 600
 config.ANALYZER_TIMEOUT = 120
 
 return config
-

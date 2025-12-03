@@ -132,6 +132,37 @@ local function sort_buffer(self, target_species, parent1, parent2)
   end
 end
 
+-- Trash invalid bees (wrong species) from scan result.
+-- Returns number of items trashed.
+local function trash_invalid_bees(self, scan)
+  local trashed = 0
+  
+  -- Trash invalid princess
+  if scan.invalid_princess then
+    local _, dst_slot = find_free_slot(self.trash_dev)
+    if dst_slot then
+      mover.move_between_devices(self.buffer_dev, self.trash_dev, 1, scan.invalid_princess.slot, dst_slot)
+      print(string.format("    Trashed invalid princess: %s", scan.invalid_princess.species))
+      trashed = trashed + 1
+    end
+  end
+  
+  -- Trash invalid drones
+  for _, drone in ipairs(scan.invalid_drones or {}) do
+    local _, dst_slot = find_free_slot(self.trash_dev)
+    if dst_slot then
+      mover.move_between_devices(self.buffer_dev, self.trash_dev, drone.size, drone.slot, dst_slot)
+      trashed = trashed + drone.size
+    end
+  end
+  
+  if #(scan.invalid_drones or {}) > 0 then
+    print(string.format("    Trashed %d invalid drone(s)", #scan.invalid_drones))
+  end
+  
+  return trashed
+end
+
 -- Clean buffer during breeding: keep only princess and best drone stack of target species.
 -- Everything else (hybrids, extra drones, non-target species) → trash
 local function clean_buffer(self, target_species)
@@ -352,10 +383,59 @@ function orch_mt:execute_mutation(mutation)
     cycle_count = cycle_count + 1
     print(string.format("  Cycle %d...", cycle_count))
     
+    -- Clean up any invalid bees before breeding
+    local pre_scan = self.apiary:scan_buffer()
+    if pre_scan then
+      trash_invalid_bees(self, pre_scan)
+    end
+    
     -- Breed
-    local breed_ok, breed_err = self.apiary:breed_cycle(self.cycle_timeout)
+    local breed_ok, breed_err, breed_scan = self.apiary:breed_cycle(self.cycle_timeout)
     if not breed_ok then
-      error("breeding failed: " .. tostring(breed_err))
+      if breed_err == "invalid_princess" and breed_scan then
+        -- Princess mutated into wrong species - trash it and request new one
+        print(string.format("    Princess mutated into %s - trashing and requesting new", 
+          breed_scan.invalid_princess.species))
+        trash_invalid_bees(self, breed_scan)
+        
+        -- Try to request new princess from ME
+        local princess_loaded = false
+        for _, species in ipairs({parent1, parent2}) do
+          local requested = request_bees_from_me(self, species, true, 1)
+          if requested then
+            print(string.format("    Requested new %s princess from ME", species))
+            princess_loaded = true
+            break
+          end
+        end
+        
+        if not princess_loaded then
+          error("No valid princess available and cannot get new one from ME")
+        end
+        
+        -- Continue to next cycle iteration
+        goto continue_cycle
+      elseif breed_err == "no princess found in buffer" then
+        -- No princess at all - try to request from ME
+        print("    No princess found - requesting from ME")
+        local princess_loaded = false
+        for _, species in ipairs({parent1, parent2, target}) do
+          local requested = request_bees_from_me(self, species, true, 1)
+          if requested then
+            print(string.format("    Requested new %s princess from ME", species))
+            princess_loaded = true
+            break
+          end
+        end
+        
+        if not princess_loaded then
+          error("No princess available and cannot get new one from ME")
+        end
+        
+        goto continue_cycle
+      else
+        error("breeding failed: " .. tostring(breed_err))
+      end
     end
     
     -- Analyze all
@@ -381,6 +461,7 @@ function orch_mt:execute_mutation(mutation)
       self.acclimatizer:process_all(requirements_by_bee)
     end
     
+    ::continue_cycle::
     -- Free memory periodically
     os.sleep(0) -- yield to allow garbage collection
   end

@@ -31,11 +31,13 @@ local function find_shared_nodes(buffer_dev, apiary_dev)
 end
 
 -- Scan buffer and return categorized bees.
--- Returns: { princess = {...}, drones = {species -> list} }
+-- Returns: { princess = {...}, drones = {species -> list}, invalid_princess = {...}, invalid_drones = {...} }
 local function scan_buffer(buffer_node, valid_species)
   local result = {
-    princess = nil,  -- {slot, stack, species, is_pure}
-    drones = {},     -- species -> list of {slot, stack, is_pure}
+    princess = nil,           -- {slot, stack, species, is_pure} - valid princess
+    drones = {},              -- species -> list of {slot, stack, is_pure}
+    invalid_princess = nil,   -- {slot, stack, species} - princess of wrong species
+    invalid_drones = {},      -- list of {slot, stack, species, size} - drones of wrong species
   }
   
   -- Build valid species lookup set
@@ -58,10 +60,10 @@ local function scan_buffer(buffer_node, valid_species)
     slot = slot + 1
     if stack and stack.individual then
       local species = analyzer.get_species(stack)
-      if species and valid_set[species] then
-        local is_pure = analyzer.is_pure(stack)
-        
-        if analyzer.is_princess(stack) then
+      local is_pure = analyzer.is_pure(stack)
+      
+      if analyzer.is_princess(stack) then
+        if species and valid_set[species] then
           if not result.princess then
             result.princess = {
               slot = slot,
@@ -71,11 +73,30 @@ local function scan_buffer(buffer_node, valid_species)
             }
           end
         else
-          -- Drone
+          -- Princess of invalid species
+          if not result.invalid_princess then
+            result.invalid_princess = {
+              slot = slot,
+              stack = stack,
+              species = species or "unknown",
+            }
+          end
+        end
+      else
+        -- Drone
+        if species and valid_set[species] then
           table.insert(result.drones[species], {
             slot = slot,
             stack = stack,
             is_pure = is_pure,
+          })
+        else
+          -- Drone of invalid species
+          table.insert(result.invalid_drones, {
+            slot = slot,
+            stack = stack,
+            species = species or "unknown",
+            size = stack.size or 1,
           })
         end
       end
@@ -168,6 +189,8 @@ end
 
 -- Perform one breeding cycle.
 -- Returns true on success, nil + error on failure.
+-- Returns nil, "invalid_princess", scan if princess is of wrong species
+-- Returns nil, "invalid_drones", scan if no valid princess but has invalid drones to clean
 function apiary_mt:breed_cycle(timeout_sec)
   if not self.target then
     return nil, "no breeding task set"
@@ -183,6 +206,10 @@ function apiary_mt:breed_cycle(timeout_sec)
   local scan = scan_buffer(buffer_node, self.valid_species)
   
   if not scan.princess then
+    -- No valid princess - check if there's an invalid one
+    if scan.invalid_princess then
+      return nil, "invalid_princess", scan
+    end
     return nil, "no princess found in buffer"
   end
   
@@ -245,6 +272,22 @@ function apiary_mt:get_task()
     parent2 = self.parent2,
     target = self.target,
   }
+end
+
+-- Scan buffer and return categorized bees without breeding.
+-- Useful for checking invalid bees that need to be cleaned.
+function apiary_mt:scan_buffer()
+  local buffer_node, apiary_node, shared_err = find_shared_nodes(self.buffer_dev, self.apiary_dev)
+  if not buffer_node then
+    return nil, shared_err
+  end
+  return scan_buffer(buffer_node, self.valid_species)
+end
+
+-- Get buffer node for external operations.
+function apiary_mt:get_buffer_node()
+  local buffer_node = find_shared_nodes(self.buffer_dev, self.apiary_dev)
+  return buffer_node
 end
 
 local function new(buffer_dev, apiary_dev)
