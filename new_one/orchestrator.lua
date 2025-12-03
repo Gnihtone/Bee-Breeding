@@ -400,6 +400,24 @@ function orch_mt:execute_mutation(mutation)
         
         -- Retry this cycle
         cycle_count = cycle_count - 1
+      elseif string.find(breed_result, "no suitable drone") then
+        -- No suitable drones - request parent drones from ME
+        print("    No suitable drones - requesting from ME")
+        local drones_loaded = false
+        for _, species in ipairs({parent1, parent2}) do
+          local requested = request_bees_from_me(self, species, false, INITIAL_DRONES_PER_PARENT)
+          if requested then
+            print(string.format("    Requested %s drones from ME", species))
+            drones_loaded = true
+          end
+        end
+        
+        if not drones_loaded then
+          error("No suitable drones available and cannot get new ones from ME")
+        end
+        
+        -- Retry this cycle
+        cycle_count = cycle_count - 1
       else
         error("breeding failed: " .. tostring(breed_result))
       end

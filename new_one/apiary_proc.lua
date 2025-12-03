@@ -117,18 +117,23 @@ end
 local function get_drone_species_priority(princess_species, parent1, parent2, target)
   local priority = {}
   
-  -- Always try target first
-  table.insert(priority, target)
-  
-  -- Then opposite parent
   if princess_species == target then
-    -- Princess is target, use any parent
+    -- Princess is already target species - breed with target first, then parents
+    table.insert(priority, target)
     table.insert(priority, parent1)
     table.insert(priority, parent2)
   elseif princess_species == parent1 then
+    -- Princess is parent1 - breed with parent2 to get mutation (NO target drone!)
     table.insert(priority, parent2)
+    table.insert(priority, parent1)  -- Self-breeding as fallback
   elseif princess_species == parent2 then
+    -- Princess is parent2 - breed with parent1 to get mutation (NO target drone!)
     table.insert(priority, parent1)
+    table.insert(priority, parent2)  -- Self-breeding as fallback
+  else
+    -- Princess is "foreign" species (side mutation) - fix it with parents
+    table.insert(priority, parent1)
+    table.insert(priority, parent2)
   end
   
   return priority
