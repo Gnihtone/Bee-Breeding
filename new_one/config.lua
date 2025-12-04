@@ -60,7 +60,7 @@ config.REQUIREMENTS_FILE = "bee_requirements.txt"
 -- ============================================================================
 
 -- Frame to use for mutations (when breeding new species, not self-breeding)
-config.MUTATION_FRAME = "Mutation Frame"
+config.MUTATION_FRAME = "Mutagenic Frame"
 
 -- Frame slot in apiary (using first frame slot)
 config.FRAME_SLOT = 10

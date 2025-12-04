@@ -442,12 +442,12 @@ function orch_mt:execute_mutation(mutation)
   self.apiary:set_breeding_task(parent1, parent2, target)
   
   -- Load mutation frame if this is a real mutation
-  if is_mutation then
-    local frame_ok, frame_err = ensure_frame(self)
-    if not frame_ok then
-      print("  Warning: failed to load frame: " .. tostring(frame_err))
-    end
-  end
+  -- if is_mutation then
+  --   local frame_ok, frame_err = ensure_frame(self)
+  --   if not frame_ok then
+  --     print("  Warning: failed to load frame: " .. tostring(frame_err))
+  --   end
+  -- end
   
   -- Initial acclimatization - increase tolerance for all bees
   self.acclimatizer:process_all(requirements_by_bee)
