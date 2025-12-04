@@ -200,6 +200,8 @@ function accl_mt:process_all(requirements, timeout_sec)
   if #nodes == 0 then return true end
   local buffer_node = nodes[1]
   
+  local acclimatized_slots = {}
+  
   -- Process princess if found
   if needs_accl.princess then
     local princess = needs_accl.princess
@@ -219,7 +221,7 @@ function accl_mt:process_all(requirements, timeout_sec)
     if not dst_slot then
       error("princess acclimatization failed: " .. tostring(err), 2)
     end
-    -- Note: slots are already marked in process_bee
+    table.insert(acclimatized_slots, dst_slot)
   end
   
   -- Acclimatize all drones that need it
@@ -245,9 +247,14 @@ function accl_mt:process_all(requirements, timeout_sec)
         if not dst_slot then
           error("drone acclimatization failed: " .. tostring(err), 2)
         end
-        -- Note: slots are already marked in process_bee
+        table.insert(acclimatized_slots, dst_slot)
       end
     end
+  end
+  
+  -- Refresh acclimatized slots to get actual data
+  if #acclimatized_slots > 0 then
+    self.cache:refresh_slots(acclimatized_slots)
   end
   
   return true

@@ -271,6 +271,9 @@ local function load_initial_bees(self, parent1, parent2)
     end
   end
   
+  -- Refresh cache to get actual bee data
+  self.cache:refresh()
+  
   return true
 end
 

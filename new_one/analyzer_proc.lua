@@ -74,6 +74,7 @@ function analyzer_mt:process_all(timeout_sec)
   
   -- Process each unanalyzed slot
   local empty_idx = 1
+  local analyzed_slots = {}
   
   for _, src_slot in ipairs(unanalyzed_slots) do
     -- Move to analyzer input
@@ -102,6 +103,12 @@ function analyzer_mt:process_all(timeout_sec)
     end
     -- Mark as occupied (analyzed bee is different from original)
     cache:mark_slot_occupied(dst_slot)
+    table.insert(analyzed_slots, dst_slot)
+  end
+
+  -- Refresh analyzed slots to get actual data
+  if #analyzed_slots > 0 then
+    cache:refresh_slots(analyzed_slots)
   end
 
   return true

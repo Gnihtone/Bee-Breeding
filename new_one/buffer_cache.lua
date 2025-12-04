@@ -365,7 +365,7 @@ end
 
 -- Mark slot as occupied (placeholder) so find_free_slot won't return it.
 -- Used when moving items INTO buffer from external source.
--- The slot will be properly refreshed on next dirty refresh.
+-- Does NOT mark as dirty - placeholder stays until full refresh.
 function cache_mt:mark_slot_occupied(slot)
   if not self._valid then return end
   
@@ -378,16 +378,36 @@ function cache_mt:mark_slot_occupied(slot)
       is_bee = false,
     }
   end
-  -- Also mark as dirty so it gets properly refreshed later
-  self._dirty[slot] = true
+  -- Remove from dirty so refresh_dirty won't overwrite placeholder
+  self._dirty[slot] = nil
 end
 
 -- Mark slot as empty (for when moving items OUT of buffer)
+-- Does NOT mark as dirty - empty stays until full refresh.
 function cache_mt:mark_slot_empty(slot)
   if not self._valid then return end
   self._slots[slot] = nil
-  -- Also mark as dirty in case we need to verify
-  self._dirty[slot] = true
+  -- Remove from dirty so refresh_dirty won't overwrite
+  self._dirty[slot] = nil
+end
+
+-- Force refresh specific slots (read actual data from transposer)
+-- Use this after a batch of operations to sync cache with reality.
+function cache_mt:refresh_slots(slots)
+  if not self._valid then
+    self:refresh()
+    return
+  end
+  
+  local tp = self._tp
+  local side = self._node.side
+  
+  for _, slot_num in ipairs(slots) do
+    local ok, stack = pcall(tp.getStackInSlot, side, slot_num)
+    if ok then
+      self._slots[slot_num] = extract_slot_data(stack)
+    end
+  end
 end
 
 -- Consolidate identical items in buffer (merge into stacks).

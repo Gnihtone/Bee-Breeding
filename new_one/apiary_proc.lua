@@ -200,6 +200,7 @@ function apiary_mt:breed_cycle(timeout_sec, trash_dev)
   end
   
   -- Unload all output slots to buffer
+  local moved_to_slots = {}
   for _, out_slot in ipairs(OUTPUT_SLOTS) do
     local dst_slot = self.cache:find_free_slot()
     if dst_slot then
@@ -207,8 +208,14 @@ function apiary_mt:breed_cycle(timeout_sec, trash_dev)
       if moved and moved > 0 then
         -- Mark slot as occupied immediately so next find_free_slot won't return it
         self.cache:mark_slot_occupied(dst_slot)
+        table.insert(moved_to_slots, dst_slot)
       end
     end
+  end
+  
+  -- Refresh the slots we moved items to (get actual bee data)
+  if #moved_to_slots > 0 then
+    self.cache:refresh_slots(moved_to_slots)
   end
   
   return true, scan
