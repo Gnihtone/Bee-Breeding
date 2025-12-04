@@ -61,6 +61,9 @@ local function scan_buffer_for_unanalyzed(tp, buffer_side)
     end
   end
   
+  -- Help GC
+  stacks = nil
+  
   return unanalyzed_slots, empty_slots
 end
 

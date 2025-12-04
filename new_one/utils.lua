@@ -21,7 +21,7 @@ local function find_free_slot(dev)
   if #nodes == 0 then return nil, nil, "no nodes" end
   
   local node = nodes[1]
-    local tp = component.proxy(node.tp)
+  local tp = component.proxy(node.tp)
   
   local ok, stacks = pcall(tp.getAllStacks, node.side)
   if not ok or not stacks then
@@ -32,10 +32,12 @@ local function find_free_slot(dev)
   for stack in stacks do
     slot = slot + 1
     if not stack or not stack.name then
-          return node, slot
+      stacks = nil  -- Help GC
+      return node, slot
     end
   end
   
+  stacks = nil  -- Help GC
   return nil, nil, "no free slot"
 end
 
@@ -45,7 +47,7 @@ local function find_slot_with(dev, label)
   if #nodes == 0 then return nil end
   
   local node = nodes[1]
-    local tp = component.proxy(node.tp)
+  local tp = component.proxy(node.tp)
   
   local ok, stacks = pcall(tp.getAllStacks, node.side)
   if not ok or not stacks then return nil end
@@ -54,10 +56,13 @@ local function find_slot_with(dev, label)
   for stack in stacks do
     slot = slot + 1
     if stack and stack.label == label then
-          return node, slot, stack
+      local result_stack = {label = stack.label, size = stack.size, name = stack.name}
+      stacks = nil  -- Help GC
+      return node, slot, result_stack
     end
   end
   
+  stacks = nil  -- Help GC
   return nil
 end
 
@@ -118,7 +123,7 @@ local function consolidate_buffer(dev)
       if source.size == 0 then goto continue_source end
       
       -- Calculate how much we can move
-            local space = target.maxSize - target.size
+      local space = target.maxSize - target.size
       if space <= 0 then
         -- Target full, make source the new target
         target = source
@@ -127,8 +132,8 @@ local function consolidate_buffer(dev)
       
       local to_move = math.min(space, source.size)
       local ok_move, moved = pcall(tp.transferItem, node.side, node.side, to_move, source.slot, target.slot)
-              if ok_move and moved and moved > 0 then
-                target.size = target.size + moved
+      if ok_move and moved and moved > 0 then
+        target.size = target.size + moved
         source.size = source.size - moved
       end
       
@@ -137,6 +142,125 @@ local function consolidate_buffer(dev)
     
     ::continue_group::
   end
+  
+  -- Help GC by clearing references
+  items = nil
+  by_key = nil
+end
+
+-- Consolidate buffer AND count target bees in one scan.
+-- Returns: {max_drone_stack = N, total_drones = N, has_princess = bool}
+local function consolidate_and_count(dev, target_species, analyzer_mod)
+  local result = {max_drone_stack = 0, total_drones = 0, has_princess = false}
+  
+  local nodes = device_nodes(dev)
+  if #nodes == 0 then return result end
+  
+  local node = nodes[1]
+  local tp = component.proxy(node.tp)
+  
+  local ok, stacks = pcall(tp.getAllStacks, node.side)
+  if not ok or not stacks then return result end
+  
+  -- Build items list AND count targets in single pass
+  local items = {}
+  local slot = 0
+  for stack in stacks do
+    slot = slot + 1
+    if stack and stack.name then
+      -- Build consolidation data
+      local key = (stack.name or "") .. "|" .. (stack.label or "")
+      if stack.hasTag and stack.tag then
+        key = key .. "|" .. tostring(stack.tag)
+      end
+      table.insert(items, {
+        slot = slot,
+        key = key,
+        size = stack.size or 1,
+        maxSize = stack.maxSize or 64
+      })
+      
+      -- Count targets if analyzer module provided
+      if analyzer_mod and stack.individual then
+        local species = analyzer_mod.get_species(stack)
+        if species == target_species and analyzer_mod.is_pure(stack) then
+          if analyzer_mod.is_princess(stack) then
+            result.has_princess = true
+          else
+            local size = stack.size or 1
+            result.total_drones = result.total_drones + size
+            if size > result.max_drone_stack then
+              result.max_drone_stack = size
+            end
+          end
+        end
+      end
+    end
+  end
+  
+  stacks = nil  -- Help GC
+  
+  -- Now consolidate
+  if #items >= 2 then
+    local by_key = {}
+    for _, item in ipairs(items) do
+      by_key[item.key] = by_key[item.key] or {}
+      table.insert(by_key[item.key], item)
+    end
+    
+    for _, group in pairs(by_key) do
+      if #group >= 2 then
+        local target = group[1]
+        for i = 2, #group do
+          local source = group[i]
+          if source.size > 0 then
+            local space = target.maxSize - target.size
+            if space <= 0 then
+              target = source
+            else
+              local to_move = math.min(space, source.size)
+              local ok_move, moved = pcall(tp.transferItem, node.side, node.side, to_move, source.slot, target.slot)
+              if ok_move and moved and moved > 0 then
+                target.size = target.size + moved
+                source.size = source.size - moved
+              end
+            end
+          end
+        end
+      end
+    end
+    
+    by_key = nil  -- Help GC
+  end
+  
+  items = nil  -- Help GC
+  
+  -- Recount after consolidation (stacks may have merged)
+  if analyzer_mod then
+    result = {max_drone_stack = 0, total_drones = 0, has_princess = false}
+    local ok2, stacks2 = pcall(tp.getAllStacks, node.side)
+    if ok2 and stacks2 then
+      for stack in stacks2 do
+        if stack and stack.individual then
+          local species = analyzer_mod.get_species(stack)
+          if species == target_species and analyzer_mod.is_pure(stack) then
+            if analyzer_mod.is_princess(stack) then
+              result.has_princess = true
+            else
+              local size = stack.size or 1
+              result.total_drones = result.total_drones + size
+              if size > result.max_drone_stack then
+                result.max_drone_stack = size
+              end
+            end
+          end
+        end
+      end
+      stacks2 = nil
+    end
+  end
+  
+  return result
 end
 
 return {
@@ -144,4 +268,5 @@ return {
   find_free_slot = find_free_slot,
   find_slot_with = find_slot_with,
   consolidate_buffer = consolidate_buffer,
+  consolidate_and_count = consolidate_and_count,
 }

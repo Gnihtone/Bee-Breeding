@@ -78,6 +78,8 @@ local function count_target_in_buffer(buffer_dev, target_species)
         end
       end
     end
+    -- Help GC
+    stacks = nil
   end
   
   return result
@@ -217,6 +219,9 @@ local function clean_buffer(self, target_species)
       mover.move_between_devices(self.buffer_dev, self.trash_dev, 64, trash_slot, dst_slot)
     end
   end
+  
+  -- Help GC
+  slots_to_trash = nil
 end
 
 -- Find bee in ME network by species and type.
@@ -371,14 +376,9 @@ function orch_mt:execute_mutation(mutation)
     cycle_count = cycle_count + 1
     print(string.format("  Cycle %d...", cycle_count))
     
-    -- Clean up any invalid drones before breeding
-    local pre_scan = self.apiary:scan_buffer()
-    if pre_scan then
-      trash_invalid_drones(self, pre_scan)
-    end
-    
     -- Breed (any princess is valid, will be "fixed" by breeding with correct drone)
-    local breed_ok, breed_result = self.apiary:breed_cycle(self.cycle_timeout)
+    -- Invalid drones are automatically trashed inside breed_cycle
+    local breed_ok, breed_result = self.apiary:breed_cycle(self.cycle_timeout, self.trash_dev)
     
     if not breed_ok then
       if breed_result == "no princess found in buffer" then
@@ -435,11 +435,8 @@ function orch_mt:execute_mutation(mutation)
       -- Analyze all
       self.analyzer:process_all(self.analyze_timeout)
       
-      -- Consolidate identical bees into stacks
-      utils.consolidate_buffer(self.buffer_dev)
-      
-      -- Count target bees
-      local counts = count_target_in_buffer(self.buffer_dev, target)
+      -- Consolidate identical bees into stacks AND count targets in one operation
+      local counts = utils.consolidate_and_count(self.buffer_dev, target, analyzer)
       print(string.format("    Target: %d/%d drones (max stack: %d), princess: %s", 
         counts.total_drones, DRONES_NEEDED, counts.max_drone_stack, 
         counts.has_princess and "yes" or "no"))
@@ -454,8 +451,8 @@ function orch_mt:execute_mutation(mutation)
       self.acclimatizer:process_all(requirements_by_bee)
     end
     
-    -- Free memory periodically
-    os.sleep(0) -- yield to allow garbage collection
+    -- Yield to allow background GC
+    os.sleep(0)
   end
   
   -- Clean buffer: keep only target princess and best drone stack, trash the rest

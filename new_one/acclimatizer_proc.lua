@@ -202,64 +202,52 @@ local function bee_needs_acclimatization(stack)
   return climate_upper ~= "NORMAL" or humidity_upper ~= "NORMAL"
 end
 
--- Find princess in buffer that needs acclimatization.
--- Returns {slot, node, stack} or nil.
-local function find_princess_needing_acclimatization(buffer_dev)
+-- Find all bees in buffer that need acclimatization (single scan).
+-- Returns {princess = {...} or nil, drones = list of {...}}
+-- NOTE: Does NOT store full stack objects to save memory.
+local function find_bees_needing_acclimatization(buffer_dev)
+  local result = {princess = nil, drones = {}}
+  
   local nodes = device_nodes(buffer_dev)
-  if #nodes == 0 then return nil end
+  if #nodes == 0 then return result end
   
   local node = nodes[1]
   local tp = component.proxy(node.tp)
   
   local ok, stacks = pcall(tp.getAllStacks, node.side)
-  if not ok or not stacks then return nil end
+  if not ok or not stacks then return result end
   
   local slot = 0
   for stack in stacks do
     slot = slot + 1
-    if stack and stack.individual and analyzer.is_princess(stack) then
+    if stack and stack.individual then
       if bee_needs_acclimatization(stack) then
-        return {
-          slot = slot,
-          node = node,
-          stack = stack,
-        }
+        if analyzer.is_princess(stack) then
+          -- Princess
+          if not result.princess then
+            result.princess = {
+              slot = slot,
+              node = node,
+              climate = analyzer.get_climate(stack),
+              humidity = analyzer.get_humidity(stack),
+            }
+          end
+        else
+          -- Drone
+          table.insert(result.drones, {
+            slot = slot,
+            node = node,
+            count = stack.size or 1,
+          })
+        end
       end
     end
   end
   
-  return nil
-end
-
--- Find all drones in buffer that need acclimatization.
--- Returns list of {slot, node, count} or empty list.
-local function find_drones_needing_acclimatization(buffer_dev)
-  local nodes = device_nodes(buffer_dev)
-  if #nodes == 0 then return {} end
+  -- Help GC
+  stacks = nil
   
-  local node = nodes[1]
-  local tp = component.proxy(node.tp)
-  
-  local ok, stacks = pcall(tp.getAllStacks, node.side)
-  if not ok or not stacks then return {} end
-  
-  local drones = {}
-  local slot = 0
-  for stack in stacks do
-    slot = slot + 1
-    -- Drone = has individual but is NOT princess
-    if stack and stack.individual and not analyzer.is_princess(stack) then
-      if bee_needs_acclimatization(stack) then
-        table.insert(drones, {
-          slot = slot,
-          node = node,
-          count = stack.size or 1,  -- Number of drones in this slot
-        })
-      end
-    end
-  end
-  
-  return drones
+  return result
 end
 
 -- Process princess and drones - acclimatize those that need it.
@@ -270,12 +258,14 @@ function accl_mt:process_all(requirements, timeout_sec)
   local climate = requirements and requirements.climate
   local humidity = requirements and requirements.humidity
   
-  -- Find princess that needs acclimatization (non-Normal native climate/humidity)
-  local princess = find_princess_needing_acclimatization(self.buffer_dev)
+  -- Single scan to find all bees needing acclimatization
+  local needs_accl = find_bees_needing_acclimatization(self.buffer_dev)
   
-  if princess then
-    local bee_climate = analyzer.get_climate(princess.stack) or "Normal"
-    local bee_humidity = analyzer.get_humidity(princess.stack) or "Normal"
+  -- Process princess if found
+  if needs_accl.princess then
+    local princess = needs_accl.princess
+    local bee_climate = princess.climate or "Normal"
+    local bee_humidity = princess.humidity or "Normal"
     print(string.format("    Acclimatizing princess (native: %s/%s)", bee_climate, bee_humidity))
     
     local ok, err = process_princess(
@@ -292,8 +282,8 @@ function accl_mt:process_all(requirements, timeout_sec)
     end
   end
   
-  -- Acclimatize all drones that need it (needed for self-breeding or breeding new mutated pair)
-  local drones = find_drones_needing_acclimatization(self.buffer_dev)
+  -- Acclimatize all drones that need it
+  local drones = needs_accl.drones
   if #drones > 0 then
     local total_drones = 0
     for _, d in ipairs(drones) do

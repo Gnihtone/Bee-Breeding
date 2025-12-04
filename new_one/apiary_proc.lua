@@ -33,11 +33,12 @@ end
 -- Scan buffer and return categorized bees.
 -- Returns: { princess = {...}, drones = {species -> list}, invalid_drones = {...} }
 -- Any princess is valid (can be "fixed" by breeding with correct drone).
+-- NOTE: Does NOT store full stack objects to save memory - only essential fields.
 local function scan_buffer(buffer_node, valid_species)
   local result = {
-    princess = nil,           -- {slot, stack, species, is_pure} - ANY princess
-    drones = {},              -- species -> list of {slot, stack, is_pure}
-    invalid_drones = {},      -- list of {slot, stack, species, size} - drones of wrong species
+    princess = nil,           -- {slot, species, is_pure} - ANY princess
+    drones = {},              -- species -> list of {slot, is_pure}
+    invalid_drones = {},      -- list of {slot, species, size} - drones of wrong species
   }
   
   -- Build valid species lookup set for drones
@@ -61,13 +62,15 @@ local function scan_buffer(buffer_node, valid_species)
     if stack and stack.individual then
       local species = analyzer.get_species(stack)
       local is_pure = analyzer.is_pure(stack)
+      local is_princess = analyzer.is_princess(stack)
+      local size = stack.size or 1
+      -- Don't keep reference to stack after extracting needed data
       
-      if analyzer.is_princess(stack) then
+      if is_princess then
         -- Any princess is valid - she can be "fixed" by breeding
         if not result.princess then
           result.princess = {
             slot = slot,
-            stack = stack,
             species = species or "unknown",
             is_pure = is_pure,
           }
@@ -77,21 +80,22 @@ local function scan_buffer(buffer_node, valid_species)
         if species and valid_set[species] then
           table.insert(result.drones[species], {
             slot = slot,
-            stack = stack,
             is_pure = is_pure,
           })
         else
           -- Drone of invalid species
           table.insert(result.invalid_drones, {
             slot = slot,
-            stack = stack,
             species = species or "unknown",
-            size = stack.size or 1,
+            size = size,
           })
         end
       end
     end
   end
+  
+  -- Help GC by clearing iterator reference
+  stacks = nil
   
   return result
 end
@@ -185,7 +189,8 @@ end
 -- Perform one breeding cycle.
 -- Returns true on success, nil + error on failure.
 -- Returns true, scan on success (scan contains princess info for logging)
-function apiary_mt:breed_cycle(timeout_sec)
+-- If trash_dev is provided, invalid drones are automatically trashed before breeding.
+function apiary_mt:breed_cycle(timeout_sec, trash_dev)
   if not self.target then
     return nil, "no breeding task set"
   end
@@ -198,6 +203,19 @@ function apiary_mt:breed_cycle(timeout_sec)
   
   -- Scan buffer for available bees (any princess is valid)
   local scan = scan_buffer(buffer_node, self.valid_species)
+  
+  -- Trash invalid drones before breeding (if trash_dev provided)
+  if trash_dev and scan.invalid_drones and #scan.invalid_drones > 0 then
+    for _, drone in ipairs(scan.invalid_drones) do
+      local _, dst_slot = find_free_slot(trash_dev)
+      if dst_slot then
+        mover.move_between_devices(self.buffer_dev, trash_dev, drone.size, drone.slot, dst_slot)
+      end
+    end
+    if #scan.invalid_drones > 0 then
+      print(string.format("    Trashed %d invalid drone(s)", #scan.invalid_drones))
+    end
+  end
   
   if not scan.princess then
     return nil, "no princess found in buffer"
