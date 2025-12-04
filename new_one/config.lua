@@ -56,6 +56,16 @@ config.MUTATIONS_FILE = "bee_mutations.txt"
 config.REQUIREMENTS_FILE = "bee_requirements.txt"
 
 -- ============================================================================
+-- FRAMES SETTINGS
+-- ============================================================================
+
+-- Frame to use for mutations (when breeding new species, not self-breeding)
+config.MUTATION_FRAME = "Mutation Frame"
+
+-- Frame slot in apiary (using first frame slot)
+config.FRAME_SLOT = 10
+
+-- ============================================================================
 -- TIMEOUTS (seconds)
 -- ============================================================================
 

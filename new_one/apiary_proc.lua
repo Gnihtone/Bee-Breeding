@@ -6,11 +6,14 @@ local component = require("component")
 local mover = require("mover")
 local analyzer = require("analyzer")
 local utils = require("utils")
+local config = require("config")
 
 -- Forestry Apiary slots
 local PRINCESS_SLOT = 1
 local DRONE_SLOT = 2
-local OUTPUT_SLOTS = {3, 4, 5, 6, 7, 8, 9}
+local OUTPUT_SLOTS = {3, 4, 5, 6, 7, 8, 9}  -- Output slots
+local FRAME_SLOT = config.FRAME_SLOT or 10  -- First frame slot
+local MUTATION_FRAME = config.MUTATION_FRAME or "Mutation Frame"
 
 local device_nodes = utils.device_nodes
 local find_free_slot = utils.find_free_slot
@@ -296,6 +299,68 @@ end
 function apiary_mt:get_buffer_node()
   local buffer_node = find_shared_nodes(self.buffer_dev, self.apiary_dev)
   return buffer_node
+end
+
+-- Check if frame is present in apiary frame slot.
+-- Returns true if frame exists, false otherwise.
+function apiary_mt:has_frame()
+  local buffer_node, apiary_node = find_shared_nodes(self.buffer_dev, self.apiary_dev)
+  if not apiary_node then return false end
+  
+  local tp = component.proxy(apiary_node.tp)
+  local ok, stack = pcall(tp.getStackInSlot, apiary_node.side, FRAME_SLOT)
+  return ok and stack ~= nil
+end
+
+-- Load frame from ME interface into apiary.
+-- me_dev: ME interface device with frame configured in output slot
+-- me_slot: slot in ME interface where frame is available
+-- Returns true on success, nil + error on failure.
+function apiary_mt:load_frame_from(me_dev, me_slot)
+  local buffer_node, apiary_node = find_shared_nodes(self.buffer_dev, self.apiary_dev)
+  if not apiary_node then
+    return nil, "no apiary node"
+  end
+  
+  -- Move frame from ME interface to apiary
+  local moved = mover.move_between_devices(me_dev, self.apiary_dev, 1, me_slot, FRAME_SLOT)
+  if not moved or moved == 0 then
+    return nil, "failed to move frame to apiary"
+  end
+  
+  return true
+end
+
+-- Unload frame from apiary to destination device.
+-- Returns true on success, false if no frame or failed.
+function apiary_mt:unload_frame_to(dst_dev)
+  local buffer_node, apiary_node = find_shared_nodes(self.buffer_dev, self.apiary_dev)
+  if not apiary_node then return false end
+  
+  local tp = component.proxy(apiary_node.tp)
+  local ok, stack = pcall(tp.getStackInSlot, apiary_node.side, FRAME_SLOT)
+  if not ok or not stack then
+    return false  -- No frame to unload
+  end
+  
+  local _, dst_slot = find_free_slot(dst_dev)
+  if not dst_slot then
+    return false
+  end
+  
+  local moved = mover.move_between_devices(self.apiary_dev, dst_dev, 64, FRAME_SLOT, dst_slot)
+  return moved and moved > 0
+end
+
+-- Get apiary node for direct operations.
+function apiary_mt:get_apiary_node()
+  local _, apiary_node = find_shared_nodes(self.buffer_dev, self.apiary_dev)
+  return apiary_node
+end
+
+-- Get frame slot number.
+function apiary_mt:get_frame_slot()
+  return FRAME_SLOT
 end
 
 local function new(buffer_dev, apiary_dev)

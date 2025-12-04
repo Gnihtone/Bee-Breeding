@@ -16,6 +16,7 @@ local me_interface = require("me_interface")
 local config = require("config")
 local DRONES_NEEDED = config.DRONES_NEEDED
 local INITIAL_DRONES_PER_PARENT = config.INITIAL_DRONES_PER_PARENT
+local MUTATION_FRAME = config.MUTATION_FRAME or "Mutation Frame"
 
 local device_nodes = utils.device_nodes
 local find_free_slot = utils.find_free_slot
@@ -320,6 +321,74 @@ local function load_initial_bees(self, parent1, parent2)
   return true
 end
 
+-- Find frame in ME network by label.
+local function find_frame_in_me(self, frame_label)
+  local items, err = self.me:list_items()
+  if not items then
+    return nil, err
+  end
+  
+  for _, item in ipairs(items) do
+    if item.label == frame_label then
+      return item
+    end
+  end
+  
+  return nil, "frame not found: " .. frame_label
+end
+
+-- Ensure frame is loaded in apiary. Returns true if frame is present.
+-- If frame is missing, requests from ME and loads into apiary.
+local function ensure_frame(self)
+  -- Check if frame already present
+  if self.apiary:has_frame() then
+    return true
+  end
+  
+  -- Find frame in ME
+  local filter, find_err = find_frame_in_me(self, MUTATION_FRAME)
+  if not filter then
+    return nil, find_err
+  end
+  
+  -- Configure ME interface to output the frame (use slot 4 for frames)
+  local slot_idx = 4
+  local ok, err = self.me:configure_output_slot(filter, {slot_idx = slot_idx, size = 1})
+  if not ok then
+    return nil, "failed to configure ME for frame: " .. tostring(err)
+  end
+  
+  -- Wait for item to appear
+  os.sleep(0.5)
+  
+  -- Load frame from ME interface to apiary
+  local load_ok, load_err = self.apiary:load_frame_from(self.me_input_dev, slot_idx)
+  if not load_ok then
+    self.me:clear_slot(slot_idx)
+    return nil, "failed to load frame: " .. tostring(load_err)
+  end
+  
+  -- Clear ME interface slot
+  self.me:clear_slot(slot_idx)
+  
+  print("    Loaded " .. MUTATION_FRAME)
+  return true
+end
+
+-- Return frame from apiary back to ME.
+local function return_frame_to_me(self)
+  if not self.apiary:has_frame() then
+    return true  -- No frame to return
+  end
+  
+  -- Unload frame to ME output
+  local unloaded = self.apiary:unload_frame_to(self.me_output_dev)
+  if unloaded then
+    print("    Returned " .. MUTATION_FRAME .. " to ME")
+  end
+  return unloaded
+end
+
 -- Execute a single mutation.
 -- mutation = {parent1, parent2, child, block}
 -- Returns true on success, error on failure.
@@ -334,11 +403,17 @@ function orch_mt:execute_mutation(mutation)
   local target = mutation.child
   local block = mutation.block or "none"
   
+  -- Determine if this is a real mutation (new species) or self-breeding
+  local is_mutation = (target ~= parent1) and (target ~= parent2)
+  
   -- Get climate/humidity requirements for target species
   local climate, humidity = get_requirements(self, target)
   
   print(string.format("Starting mutation: %s + %s → %s", parent1, parent2, target))
   print(string.format("  Requirements: climate=%s, humidity=%s, block=%s", climate, humidity, block))
+  if is_mutation then
+    print("  Using mutation frame: " .. MUTATION_FRAME)
+  end
   
   -- Setup foundation if needed
   if block ~= "none" then
@@ -366,6 +441,14 @@ function orch_mt:execute_mutation(mutation)
   -- Setup apiary breeding task
   self.apiary:set_breeding_task(parent1, parent2, target)
   
+  -- Load mutation frame if this is a real mutation
+  if is_mutation then
+    local frame_ok, frame_err = ensure_frame(self)
+    if not frame_ok then
+      print("  Warning: failed to load frame: " .. tostring(frame_err))
+    end
+  end
+  
   -- Initial acclimatization - increase tolerance for all bees
   self.acclimatizer:process_all(requirements_by_bee)
   print("  Initial acclimatization complete")
@@ -375,6 +458,14 @@ function orch_mt:execute_mutation(mutation)
   while true do
     cycle_count = cycle_count + 1
     print(string.format("  Cycle %d...", cycle_count))
+    
+    -- Ensure frame is present for mutations (may have broken)
+    if is_mutation then
+      local frame_ok, frame_err = ensure_frame(self)
+      if not frame_ok then
+        print("    Warning: frame unavailable: " .. tostring(frame_err))
+      end
+    end
     
     -- Breed (any princess is valid, will be "fixed" by breeding with correct drone)
     -- Invalid drones are automatically trashed inside breed_cycle
@@ -453,6 +544,11 @@ function orch_mt:execute_mutation(mutation)
     
     -- Yield to allow background GC
     os.sleep(0)
+  end
+  
+  -- Return frame to ME if we used one
+  if is_mutation then
+    return_frame_to_me(self)
   end
   
   -- Clean buffer: keep only target princess and best drone stack, trash the rest
