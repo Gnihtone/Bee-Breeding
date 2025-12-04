@@ -4,7 +4,6 @@
 
 local component = require("component")
 local mover = require("mover")
-local analyzer = require("analyzer")
 local utils = require("utils")
 local config = require("config")
 
@@ -13,10 +12,8 @@ local PRINCESS_SLOT = 1
 local DRONE_SLOT = 2
 local OUTPUT_SLOTS = {3, 4, 5, 6, 7, 8, 9}  -- Output slots
 local FRAME_SLOT = config.FRAME_SLOT or 10  -- First frame slot
-local MUTATION_FRAME = config.MUTATION_FRAME or "Mutation Frame"
 
 local device_nodes = utils.device_nodes
-local find_free_slot = utils.find_free_slot
 
 local apiary_mt = {}
 apiary_mt.__index = apiary_mt
@@ -33,74 +30,18 @@ local function find_shared_nodes(buffer_dev, apiary_dev)
   return nil, nil, "no shared transposer between buffer and apiary"
 end
 
--- Scan buffer and return categorized bees.
+-- Scan buffer using cache and return categorized bees.
 -- Returns: { princess = {...}, drones = {species -> list}, invalid_drones = {...} }
--- Any princess is valid (can be "fixed" by breeding with correct drone).
--- NOTE: Does NOT store full stack objects to save memory - only essential fields.
-local function scan_buffer(buffer_node, valid_species)
-  local result = {
-    princess = nil,           -- {slot, species, is_pure} - ANY princess
-    drones = {},              -- species -> list of {slot, is_pure}
-    invalid_drones = {},      -- list of {slot, species, size} - drones of wrong species
+local function scan_buffer_cached(cache, valid_species)
+  -- Use cache methods directly
+  local princess = cache:find_princess(valid_species)
+  local drones, invalid_drones = cache:find_drones(valid_species)
+  
+  return {
+    princess = princess,
+    drones = drones,
+    invalid_drones = invalid_drones,
   }
-  
-  -- Build valid species lookup set for drones
-  local valid_set = {}
-  for _, species in ipairs(valid_species) do
-    valid_set[species] = true
-    result.drones[species] = {}
-  end
-  
-  local tp = component.proxy(buffer_node.tp)
-  
-  -- Get all stacks in one call
-  local ok, stacks = pcall(tp.getAllStacks, buffer_node.side)
-  if not ok or not stacks then
-    return result
-  end
-  
-  local slot = 0
-  for stack in stacks do
-    slot = slot + 1
-    if stack and stack.individual then
-      local species = analyzer.get_species(stack)
-      local is_pure = analyzer.is_pure(stack)
-      local is_princess = analyzer.is_princess(stack)
-      local size = stack.size or 1
-      -- Don't keep reference to stack after extracting needed data
-      
-      if is_princess then
-        -- Any princess is valid - she can be "fixed" by breeding
-        if not result.princess then
-          result.princess = {
-            slot = slot,
-            species = species or "unknown",
-            is_pure = is_pure,
-          }
-        end
-      else
-        -- Drone - filter by valid species
-        if species and valid_set[species] then
-          table.insert(result.drones[species], {
-            slot = slot,
-            is_pure = is_pure,
-          })
-        else
-          -- Drone of invalid species
-          table.insert(result.invalid_drones, {
-            slot = slot,
-            species = species or "unknown",
-            size = size,
-          })
-        end
-      end
-    end
-  end
-  
-  -- Help GC by clearing iterator reference
-  stacks = nil
-  
-  return result
 end
 
 -- Select best drone from a list (prioritize pure).
@@ -204,21 +145,11 @@ function apiary_mt:breed_cycle(timeout_sec, trash_dev)
     return nil, shared_err
   end
   
-  -- Scan buffer for available bees (any princess is valid)
-  local scan = scan_buffer(buffer_node, self.valid_species)
+  -- Scan buffer for available bees using cache
+  local scan = scan_buffer_cached(self.cache, self.valid_species)
   
   -- Trash invalid drones before breeding (if trash_dev provided)
-  if trash_dev and scan.invalid_drones and #scan.invalid_drones > 0 then
-    for _, drone in ipairs(scan.invalid_drones) do
-      local _, dst_slot = find_free_slot(trash_dev)
-      if dst_slot then
-        mover.move_between_devices(self.buffer_dev, trash_dev, drone.size, drone.slot, dst_slot)
-      end
-    end
-    if #scan.invalid_drones > 0 then
-      print(string.format("    Trashed %d invalid drone(s)", #scan.invalid_drones))
-    end
-  end
+  -- Note: trashing is handled by orchestrator now, just return invalid_drones in scan
   
   if not scan.princess then
     return nil, "no princess found in buffer"
@@ -245,6 +176,7 @@ function apiary_mt:breed_cycle(timeout_sec, trash_dev)
   if not moved_p or moved_p == 0 then
     return nil, "failed to load princess: " .. tostring(perr)
   end
+  self.cache:mark_dirty(princess.slot)
   
   -- Load drone into apiary slot 2
   local moved_d, derr = mover.move_between_nodes(
@@ -252,12 +184,14 @@ function apiary_mt:breed_cycle(timeout_sec, trash_dev)
   )
   if not moved_d or moved_d == 0 then
     -- Unload princess back
-    local _, free_slot = find_free_slot(self.buffer_dev)
+    local free_slot = self.cache:find_free_slot()
     if free_slot then
       mover.move_between_nodes(apiary_node, buffer_node, 1, PRINCESS_SLOT, free_slot)
+      self.cache:mark_dirty(free_slot)
     end
     return nil, "failed to load drone: " .. tostring(derr)
   end
+  self.cache:mark_dirty(drone.slot)
   
   -- Wait for cycle to complete
   local cycle_ok, cycle_err = wait_cycle(apiary_node, timeout_sec)
@@ -266,12 +200,19 @@ function apiary_mt:breed_cycle(timeout_sec, trash_dev)
   end
   
   -- Unload all output slots to buffer
+  local dirty_slots = {}
   for _, out_slot in ipairs(OUTPUT_SLOTS) do
-    local _, dst_slot = find_free_slot(self.buffer_dev)
+    local dst_slot = self.cache:find_free_slot()
     if dst_slot then
-      mover.move_between_nodes(apiary_node, buffer_node, 64, out_slot, dst_slot)
+      local moved = mover.move_between_nodes(apiary_node, buffer_node, 64, out_slot, dst_slot)
+      if moved and moved > 0 then
+        table.insert(dirty_slots, dst_slot)
+      end
     end
   end
+  
+  -- Mark all destination slots as dirty
+  self.cache:mark_slots_dirty(dirty_slots)
   
   return true, scan
 end
@@ -285,14 +226,10 @@ function apiary_mt:get_task()
   }
 end
 
--- Scan buffer and return categorized bees without breeding.
+-- Scan buffer and return categorized bees without breeding (uses cache).
 -- Useful for checking invalid bees that need to be cleaned.
 function apiary_mt:scan_buffer()
-  local buffer_node, apiary_node, shared_err = find_shared_nodes(self.buffer_dev, self.apiary_dev)
-  if not buffer_node then
-    return nil, shared_err
-  end
-  return scan_buffer(buffer_node, self.valid_species)
+  return scan_buffer_cached(self.cache, self.valid_species)
 end
 
 -- Get buffer node for external operations.
@@ -343,7 +280,8 @@ function apiary_mt:unload_frame_to(dst_dev)
     return false  -- No frame to unload
   end
   
-  local _, dst_slot = find_free_slot(dst_dev)
+  -- Use utils.find_free_slot for non-buffer devices
+  local _, dst_slot = utils.find_free_slot(dst_dev)
   if not dst_slot then
     return false
   end
@@ -363,13 +301,15 @@ function apiary_mt:get_frame_slot()
   return FRAME_SLOT
 end
 
-local function new(buffer_dev, apiary_dev)
+local function new(buffer_dev, apiary_dev, cache)
   if not buffer_dev then error("buffer device required", 2) end
   if not apiary_dev then error("apiary device required", 2) end
+  if not cache then error("buffer cache required", 2) end
   
   return setmetatable({
     buffer_dev = buffer_dev,
     apiary_dev = apiary_dev,
+    cache = cache,
     parent1 = nil,
     parent2 = nil,
     target = nil,

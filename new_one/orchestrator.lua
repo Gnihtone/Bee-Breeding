@@ -12,6 +12,7 @@ local analyzer_proc = require("analyzer_proc")
 local acclimatizer_proc = require("acclimatizer_proc")
 local foundation = require("foundation")
 local me_interface = require("me_interface")
+local buffer_cache = require("buffer_cache")
 
 local config = require("config")
 local DRONES_NEEDED = config.DRONES_NEEDED
@@ -50,141 +51,93 @@ local function get_requirements(self, species)
   return "Normal", "Normal"
 end
 
--- Count target bees in buffer.
+-- Count target bees in buffer (uses cache).
 -- Returns: {max_drone_stack = N, total_drones = N, has_princess = bool}
-local function count_target_in_buffer(buffer_dev, target_species)
-  local result = {max_drone_stack = 0, total_drones = 0, has_princess = false}
-  
-  -- Use only first node - all nodes point to the same physical inventory
-  local nodes = device_nodes(buffer_dev)
-  local node = nodes[1]
-  if not node then return result end
-  
-  local tp = component.proxy(node.tp)
-  local ok, stacks = pcall(tp.getAllStacks, node.side)
-  if ok and stacks then
-    for stack in stacks do
-      if stack and stack.individual then
-        local species = analyzer.get_species(stack)
-        if species == target_species and analyzer.is_pure(stack) then
-          if analyzer.is_princess(stack) then
-            result.has_princess = true
-          else
-            local size = stack.size or 1
-            result.total_drones = result.total_drones + size
-            if size > result.max_drone_stack then
-              result.max_drone_stack = size
-            end
-          end
-        end
-      end
-    end
-    -- Help GC
-    stacks = nil
-  end
-  
-  return result
+local function count_target_in_buffer(cache, target_species)
+  return cache:count_target(target_species)
 end
 
--- Sort buffer contents after breeding is complete.
+-- Sort buffer contents after breeding is complete (uses cache).
 -- Pure target and pure parents → ME, hybrids → trash
 local function sort_buffer(self, target_species, parent1, parent2)
-  local valid_species = {target_species}
-  if parent1 ~= target_species then table.insert(valid_species, parent1) end
-  if parent2 ~= target_species and parent2 ~= parent1 then table.insert(valid_species, parent2) end
+  local valid_set = {[target_species] = true}
+  if parent1 ~= target_species then valid_set[parent1] = true end
+  if parent2 ~= target_species and parent2 ~= parent1 then valid_set[parent2] = true end
   
-  for _, node in ipairs(device_nodes(self.buffer_dev)) do
-    local tp = component.proxy(node.tp)
-    local ok_size, size = pcall(tp.getInventorySize, node.side)
-    if not ok_size or type(size) ~= "number" then
-      goto continue_node
+  local cache = self.cache
+  cache:ensure_valid()
+  
+  for slot = 1, cache:get_size() do
+    local data = cache:get_slot(slot)
+    if not data or not data.is_bee then
+      goto continue_slot
     end
     
-    for slot = 1, size do
-      local ok_stack, stack = pcall(tp.getStackInSlot, node.side, slot)
-      if not ok_stack or not stack or not stack.individual then
-        goto continue_slot
+    local is_valid_species = valid_set[data.species] or false
+    
+    if data.is_pure and is_valid_species then
+      -- Pure bee of valid species → ME
+      local _, dst_slot = find_free_slot(self.me_output_dev)
+      if dst_slot then
+        mover.move_between_devices(self.buffer_dev, self.me_output_dev, data.size, slot, dst_slot)
+        cache:mark_dirty(slot)
       end
-      
-      local species = analyzer.get_species(stack)
-      local is_pure = analyzer.is_pure(stack)
-      
-      -- Check if it's a valid species
-      local is_valid_species = false
-      for _, vs in ipairs(valid_species) do
-        if species == vs then is_valid_species = true; break end
+    else
+      -- Hybrid or unknown → trash
+      local _, dst_slot = find_free_slot(self.trash_dev)
+      if dst_slot then
+        mover.move_between_devices(self.buffer_dev, self.trash_dev, data.size, slot, dst_slot)
+        cache:mark_dirty(slot)
       end
-      
-      if is_pure and is_valid_species then
-        -- Pure bee of valid species → ME
-        local _, dst_slot = find_free_slot(self.me_output_dev)
-        if dst_slot then
-          mover.move_between_devices(self.buffer_dev, self.me_output_dev, stack.size or 64, slot, dst_slot)
-        end
-      else
-        -- Hybrid or unknown → trash
-        local _, dst_slot = find_free_slot(self.trash_dev)
-        if dst_slot then
-          mover.move_between_devices(self.buffer_dev, self.trash_dev, stack.size or 64, slot, dst_slot)
-        end
-      end
-      
-      ::continue_slot::
     end
-    ::continue_node::
+    
+    ::continue_slot::
   end
 end
 
--- Trash invalid drones (wrong species) from scan result.
+-- Trash invalid drones (wrong species).
 -- Returns number of items trashed.
-local function trash_invalid_drones(self, scan)
+local function trash_invalid_drones(self, invalid_drones)
+  if not invalid_drones or #invalid_drones == 0 then
+    return 0
+  end
+  
   local trashed = 0
   
   -- Trash invalid drones only (princesses are always kept for "fixing")
-  for _, drone in ipairs(scan.invalid_drones or {}) do
+  for _, drone in ipairs(invalid_drones) do
     local _, dst_slot = find_free_slot(self.trash_dev)
     if dst_slot then
       mover.move_between_devices(self.buffer_dev, self.trash_dev, drone.size, drone.slot, dst_slot)
+      self.cache:mark_dirty(drone.slot)
       trashed = trashed + drone.size
     end
   end
   
-  if #(scan.invalid_drones or {}) > 0 then
-    print(string.format("    Trashed %d invalid drone(s)", #scan.invalid_drones))
+  if #invalid_drones > 0 then
+    print(string.format("    Trashed %d invalid drone(s)", #invalid_drones))
   end
   
   return trashed
 end
 
 -- Clean buffer during breeding: keep only princess and best drone stack of target species.
--- Everything else (hybrids, extra drones, non-target species) → trash
+-- Everything else (hybrids, extra drones, non-target species) → trash (uses cache)
 local function clean_buffer(self, target_species)
-  local nodes = device_nodes(self.buffer_dev)
-  if #nodes == 0 then return end
-  
-  local node = nodes[1]
-  local tp = component.proxy(node.tp)
-  
-  local ok, stacks = pcall(tp.getAllStacks, node.side)
-  if not ok or not stacks then return end
+  local cache = self.cache
+  cache:ensure_valid()
   
   -- First pass: find princess slot and best drone stack
   local princess_slot = nil
   local best_drone_slot = nil
   local best_drone_size = 0
-  
-  local slot = 0
   local slots_to_trash = {}
   
-  for stack in stacks do
-    slot = slot + 1
-    if stack and stack.individual then
-      local species = analyzer.get_species(stack)
-      local is_pure = analyzer.is_pure(stack)
-      local is_princess = analyzer.is_princess(stack)
-      
-      if species == target_species and is_pure then
-        if is_princess then
+  for slot = 1, cache:get_size() do
+    local data = cache:get_slot(slot)
+    if data and data.is_bee then
+      if data.species == target_species and data.is_pure then
+        if data.is_princess then
           if princess_slot then
             -- Already have a princess, trash this one
             table.insert(slots_to_trash, slot)
@@ -193,14 +146,13 @@ local function clean_buffer(self, target_species)
           end
         else
           -- Drone
-          local size = stack.size or 1
-          if size > best_drone_size then
+          if data.size > best_drone_size then
             -- New best drone stack, trash the old one
             if best_drone_slot then
               table.insert(slots_to_trash, best_drone_slot)
             end
             best_drone_slot = slot
-            best_drone_size = size
+            best_drone_size = data.size
           else
             -- Not the best, trash it
             table.insert(slots_to_trash, slot)
@@ -213,16 +165,14 @@ local function clean_buffer(self, target_species)
     end
   end
   
-  -- Move all trash slots
+  -- Move all trash slots and mark dirty
   for _, trash_slot in ipairs(slots_to_trash) do
     local _, dst_slot = find_free_slot(self.trash_dev)
     if dst_slot then
       mover.move_between_devices(self.buffer_dev, self.trash_dev, 64, trash_slot, dst_slot)
+      cache:mark_dirty(trash_slot)
     end
   end
-  
-  -- Help GC
-  slots_to_trash = nil
 end
 
 -- Find bee in ME network by species and type.
@@ -268,8 +218,8 @@ local function request_bees_from_me(self, species, count, is_princess)
   -- Wait a bit for items to appear
   os.sleep(0.5)
   
-  -- Move from ME interface to buffer
-  local _, dst_slot = find_free_slot(self.buffer_dev)
+  -- Move from ME interface to buffer (use cache to find free slot)
+  local dst_slot = self.cache:find_free_slot()
   if not dst_slot then
     return nil, "no free slot in buffer"
   end
@@ -278,6 +228,9 @@ local function request_bees_from_me(self, species, count, is_princess)
   if not moved or moved == 0 then
     return nil, "failed to move bees from ME to buffer"
   end
+  
+  -- Mark destination slot as dirty (new item arrived)
+  self.cache:mark_dirty(dst_slot)
   
   -- Clear ME interface slot configuration after successful move
   self.me:clear_slot(slot_idx)
@@ -523,11 +476,14 @@ function orch_mt:execute_mutation(mutation)
         print(string.format("    Princess: %s%s", p.species, p_status))
       end
       
-      -- Analyze all
+      -- Analyze all (will invalidate cache due to bee analysis changes)
       self.analyzer:process_all(self.analyze_timeout)
       
-      -- Consolidate identical bees into stacks AND count targets in one operation
-      local counts = utils.consolidate_and_count(self.buffer_dev, target, analyzer)
+      -- Consolidate identical bees into stacks (uses cache)
+      self.cache:consolidate()
+      
+      -- Count target bees (from cache)
+      local counts = self.cache:count_target(target)
       print(string.format("    Target: %d/%d drones (max stack: %d), princess: %s", 
         counts.total_drones, DRONES_NEEDED, counts.max_drone_stack, 
         counts.has_princess and "yes" or "no"))
@@ -579,11 +535,14 @@ local function new(config)
   if not config.me_address then error("me_address required", 2) end
   if not config.requirements_data then error("requirements_data required", 2) end
   
-  -- Create sub-modules
+  -- Create buffer cache (shared across all sub-modules)
+  local cache = buffer_cache.new(config.buffer_dev)
+  
+  -- Create sub-modules (pass cache to those that need it)
   local me = me_interface.new(config.me_address, config.db_address)
-  local apiary = apiary_proc.new(config.buffer_dev, config.apiary_dev)
-  local analyzer_p = analyzer_proc.new(config.buffer_dev, config.analyzer_dev)
-  local accl = acclimatizer_proc.new(config.buffer_dev, config.accl_dev, config.accl_mats_dev)
+  local apiary = apiary_proc.new(config.buffer_dev, config.apiary_dev, cache)
+  local analyzer_p = analyzer_proc.new(config.buffer_dev, config.analyzer_dev, cache)
+  local accl = acclimatizer_proc.new(config.buffer_dev, config.accl_dev, config.accl_mats_dev, cache)
   local found = foundation.new(config.me_input_dev, config.foundation_dev, config.db_address)
   
   local obj = {
@@ -592,6 +551,9 @@ local function new(config)
     me_input_dev = config.me_input_dev,
     me_output_dev = config.me_output_dev,
     trash_dev = config.trash_dev,
+    
+    -- Buffer cache
+    cache = cache,
     
     -- Sub-modules
     me = me,
