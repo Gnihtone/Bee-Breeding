@@ -176,7 +176,7 @@ function apiary_mt:breed_cycle(timeout_sec, trash_dev)
   if not moved_p or moved_p == 0 then
     return nil, "failed to load princess: " .. tostring(perr)
   end
-  self.cache:mark_dirty(princess.slot)
+  self.cache:mark_slot_empty(princess.slot)
   
   -- Load drone into apiary slot 2
   local moved_d, derr = mover.move_between_nodes(
@@ -187,11 +187,11 @@ function apiary_mt:breed_cycle(timeout_sec, trash_dev)
     local free_slot = self.cache:find_free_slot()
     if free_slot then
       mover.move_between_nodes(apiary_node, buffer_node, 1, PRINCESS_SLOT, free_slot)
-      self.cache:mark_dirty(free_slot)
+      self.cache:mark_slot_occupied(free_slot)
     end
     return nil, "failed to load drone: " .. tostring(derr)
   end
-  self.cache:mark_dirty(drone.slot)
+  self.cache:mark_slot_empty(drone.slot)
   
   -- Wait for cycle to complete
   local cycle_ok, cycle_err = wait_cycle(apiary_node, timeout_sec)
@@ -200,19 +200,16 @@ function apiary_mt:breed_cycle(timeout_sec, trash_dev)
   end
   
   -- Unload all output slots to buffer
-  local dirty_slots = {}
   for _, out_slot in ipairs(OUTPUT_SLOTS) do
     local dst_slot = self.cache:find_free_slot()
     if dst_slot then
       local moved = mover.move_between_nodes(apiary_node, buffer_node, 64, out_slot, dst_slot)
       if moved and moved > 0 then
-        table.insert(dirty_slots, dst_slot)
+        -- Mark slot as occupied immediately so next find_free_slot won't return it
+        self.cache:mark_slot_occupied(dst_slot)
       end
     end
   end
-  
-  -- Mark all destination slots as dirty
-  self.cache:mark_slots_dirty(dirty_slots)
   
   return true, scan
 end

@@ -62,7 +62,7 @@ function analyzer_mt:process_all(timeout_sec)
       if #empty_slots > 0 then
         local dst = empty_slots[1]
         mover.move_between_nodes(analyzer_node, buffer_node, nil, slot, dst)
-        cache:mark_dirty(dst)
+        cache:mark_slot_occupied(dst)
         table.remove(empty_slots, 1)
       end
     end
@@ -73,7 +73,6 @@ function analyzer_mt:process_all(timeout_sec)
   end
   
   -- Process each unanalyzed slot
-  local dirty_slots = {}
   local empty_idx = 1
   
   for _, src_slot in ipairs(unanalyzed_slots) do
@@ -82,7 +81,7 @@ function analyzer_mt:process_all(timeout_sec)
     if not moved_in or moved_in == 0 then
       error("move to analyzer failed: " .. tostring(ierr), 2)
     end
-    table.insert(dirty_slots, src_slot)
+    cache:mark_slot_empty(src_slot)
     
     -- The source slot is now empty, add to empty_slots
     table.insert(empty_slots, src_slot)
@@ -101,11 +100,9 @@ function analyzer_mt:process_all(timeout_sec)
     if not moved_out then
       error("move from analyzer failed: " .. tostring(oerr), 2)
     end
-    table.insert(dirty_slots, dst_slot)
+    -- Mark as occupied (analyzed bee is different from original)
+    cache:mark_slot_occupied(dst_slot)
   end
-  
-  -- Mark all affected slots as dirty (analyzed bees have changed)
-  cache:mark_slots_dirty(dirty_slots)
 
   return true
 end

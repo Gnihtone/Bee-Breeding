@@ -149,6 +149,8 @@ local function process_bee(self, buffer_node, src_slot, climate, humidity, timeo
   if not moved_in then
     return nil, "failed to move bee to acclimatizer"
   end
+  -- Mark source slot as empty (or just dirty if there's more in stack)
+  self.cache:mark_dirty(src_slot)
   
   -- Wait for output, refilling reagents as needed
   local waited = 0
@@ -159,6 +161,8 @@ local function process_bee(self, buffer_node, src_slot, climate, humidity, timeo
       local dst_slot = self.cache:find_free_slot()
       if dst_slot then
         mover.move_between_nodes(accl_node, buffer_node, 1, OUTPUT_SLOT, dst_slot)
+        -- Mark slot as occupied so next find_free_slot won't return it
+        self.cache:mark_slot_occupied(dst_slot)
         -- Clear reagent slots
         clear_slot(self, accl_node, CLIMATE_SLOT)
         clear_slot(self, accl_node, HUMIDITY_SLOT)
@@ -196,8 +200,6 @@ function accl_mt:process_all(requirements, timeout_sec)
   if #nodes == 0 then return true end
   local buffer_node = nodes[1]
   
-  local dirty_slots = {}
-  
   -- Process princess if found
   if needs_accl.princess then
     local princess = needs_accl.princess
@@ -217,9 +219,7 @@ function accl_mt:process_all(requirements, timeout_sec)
     if not dst_slot then
       error("princess acclimatization failed: " .. tostring(err), 2)
     end
-    
-    table.insert(dirty_slots, princess.slot)
-    table.insert(dirty_slots, dst_slot)
+    -- Note: slots are already marked in process_bee
   end
   
   -- Acclimatize all drones that need it
@@ -232,8 +232,6 @@ function accl_mt:process_all(requirements, timeout_sec)
     print("    Acclimatizing " .. total_drones .. " drone(s) in " .. #drones .. " slot(s)")
     
     for _, drone in ipairs(drones) do
-      table.insert(dirty_slots, drone.slot)
-      
       -- Process each drone in the stack one by one
       for j = 1, drone.count do
         local dst_slot, err = process_bee(
@@ -247,13 +245,10 @@ function accl_mt:process_all(requirements, timeout_sec)
         if not dst_slot then
           error("drone acclimatization failed: " .. tostring(err), 2)
         end
-        table.insert(dirty_slots, dst_slot)
+        -- Note: slots are already marked in process_bee
       end
     end
   end
-  
-  -- Mark all affected slots as dirty
-  self.cache:mark_slots_dirty(dirty_slots)
   
   return true
 end

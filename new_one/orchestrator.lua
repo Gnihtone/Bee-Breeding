@@ -229,8 +229,8 @@ local function request_bees_from_me(self, species, count, is_princess)
     return nil, "failed to move bees from ME to buffer"
   end
   
-  -- Mark destination slot as dirty (new item arrived)
-  self.cache:mark_dirty(dst_slot)
+  -- Mark destination slot as occupied so next find_free_slot won't return it
+  self.cache:mark_slot_occupied(dst_slot)
   
   -- Clear ME interface slot configuration after successful move
   self.me:clear_slot(slot_idx)

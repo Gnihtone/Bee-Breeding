@@ -363,6 +363,33 @@ function cache_mt:update_after_transfer(src_slot, dst_slot, moved)
   end
 end
 
+-- Mark slot as occupied (placeholder) so find_free_slot won't return it.
+-- Used when moving items INTO buffer from external source.
+-- The slot will be properly refreshed on next dirty refresh.
+function cache_mt:mark_slot_occupied(slot)
+  if not self._valid then return end
+  
+  if not self._slots[slot] then
+    -- Create placeholder entry
+    self._slots[slot] = {
+      size = 1,
+      max_size = 64,
+      stack_key = "_placeholder_",
+      is_bee = false,
+    }
+  end
+  -- Also mark as dirty so it gets properly refreshed later
+  self._dirty[slot] = true
+end
+
+-- Mark slot as empty (for when moving items OUT of buffer)
+function cache_mt:mark_slot_empty(slot)
+  if not self._valid then return end
+  self._slots[slot] = nil
+  -- Also mark as dirty in case we need to verify
+  self._dirty[slot] = true
+end
+
 -- Consolidate identical items in buffer (merge into stacks).
 -- Uses transposer's transferItem and updates cache logically.
 function cache_mt:consolidate()
